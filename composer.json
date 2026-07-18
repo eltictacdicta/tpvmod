@@ -1,0 +1,24 @@
+{
+    "name": "fsframework/tpvmod",
+    "description": "TPV (Terminal Punto de Venta) plugin for FSFramework. Twig 3 view layer; controllers in plugins/tpvmod/controller/. Optional facturacion_base integration via lib/tpvmod_modules.php.",
+    "type": "library",
+    "license": "LGPL-3.0-or-later",
+    "version": "1.0.0",
+    "require": {
+        "php": ">=8.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "FSFramework\\Plugins\\tpvmod\\": "./"
+        },
+        "files": [
+            "lib/tpvmod_modules.php"
+        ]
+    },
+    "config": {
+        "platform": {
+            "php": "8.3"
+        },
+        "sort-packages": true
+    }
+}

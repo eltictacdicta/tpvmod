@@ -34,13 +34,17 @@ change_root: plugins/tpvmod/openspec/changes/{name}/
 archive_root: plugins/tpvmod/openspec/changes/archive/{YYYY-MM-DD}-{name}/
 
 context: >
-  Plugin TPV (Terminal Punto de Venta) para FSFramework. Fork del plugin
-  tpvmod de FacturaScripts, con vistas RainTPL legacy (no Twig), controladores
-  en plugins/tpvmod/controller/, sin namespace PSR-4.
-  Depende de clientes_facturacion, catalogo_core, business_data y clientes_core.
-  facturacion_base es opcional: cuando está activo habilita caja, terminal_caja,
-  tpv_caja, tpv_recambios y ventas_imprimir; cuando no, el TPV opera en modo
-  ventas directas sin apertura de caja.
+  Plugin TPV (Terminal Punto de Venta) para FSFramework. Vistas Twig 3
+  nativas (los .html.twig viven en plugins/tpvmod/view/, sin RainTPL
+  residual). Controladores legacy en plugins/tpvmod/controller/ sin
+  namespace PSR-4 (refactor PSR-4 diferido a un SDD posterior). Plugin
+  Composer configurado: composer.json, composer.lock, Init.php
+  (namespace FSFramework\Plugins\tpvmod) y vendor/ versionado.
+  Depende de clientes_facturacion, catalogo_core, business_data y
+  clientes_core. facturacion_base es opcional: cuando está activo
+  habilita caja, terminal_caja, tpv_caja, tpv_recambios y
+  ventas_imprimir; cuando no, el TPV opera en modo ventas directas
+  sin apertura de caja.
 
 strict_tdd: true
 
