@@ -1,4 +1,13 @@
-{include="header"}
+{#
+/**
+ * Plugin: tpvmod
+ * Pantalla admin-only para alternar el modo de selección de terminal
+ * (with_terminal | without_terminal). Persistido en fs_settings.
+ * Twig nativo (no depende de legacy_support).
+ * Migrado desde view/tpvmod_settings.html el 2026-07-18.
+ */
+#}
+{% include 'header.html.twig' %}
 
 <div class="container">
    <div class="row">
@@ -7,23 +16,23 @@
             <h1>TPVMOD — Modo de selección de terminal</h1>
          </div>
 
-         {if="!$fsc->terminal_settings_available"}
+         {% if not fsc.terminal_settings_available %}
          <div class="alert alert-info">
             La gestión de caja y terminales requiere el plugin
             <strong>facturacion_base</strong> activo. Sin él, el TPV funciona
             en modo ventas directas (sin apertura de caja ni impresión vía
             <code>ventas_imprimir</code>).
          </div>
-         {else}
-         <form action="{$fsc->url()}" method="post" class="form">
-            {$fsc->csrf_field}
+         {% else %}
+         <form action="{{ fsc.url()|raw }}" method="post" class="form">
+            {{ csrf_field() }}
             <div class="form-group">
                <label for="tpvmod_terminal_mode">Modo de selección</label>
                <select name="tpvmod_terminal_mode" id="tpvmod_terminal_mode" class="form-control">
-                  <option value="with_terminal" {if="$fsc->terminal_mode=='with_terminal'"}selected{/if}>
+                  <option value="with_terminal" {% if fsc.terminal_mode == 'with_terminal' %}selected{% endif %}>
                      Con terminal (los cajeros deben elegir un terminal)
                   </option>
-                  <option value="without_terminal" {if="$fsc->terminal_mode=='without_terminal'"}selected{/if}>
+                  <option value="without_terminal" {% if fsc.terminal_mode == 'without_terminal' %}selected{% endif %}>
                      Sin terminal (los cajeros pueden operar sin un terminal físico)
                   </option>
                </select>
@@ -34,9 +43,9 @@
                </button>
             </div>
          </form>
-         {/if}
+         {% endif %}
       </div>
    </div>
 </div>
 
-{include="footer"}
+{% include 'footer.html.twig' %}

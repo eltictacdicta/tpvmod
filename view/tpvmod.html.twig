@@ -1,35 +1,43 @@
-{include="header"}
+{#
+/**
+ * Plugin: tpvmod
+ * Vista principal del TPV (selector de terminal / caja / redirect a tpvmod2).
+ * Twig nativo (no depende de legacy_support).
+ * Migrado desde view/tpvmod.html el 2026-07-18.
+ */
+#}
+{% include 'header.html.twig' %}
 
-{if="$fsc->agente"}
-   {if="$fsc->caja || !$fsc->caja_module_enabled"}
-      {if="$fsc->caja_module_enabled && $fsc->caja && $fsc->caja->codagente!=$fsc->user->codagente"}
+{% if fsc.agente %}
+   {% if fsc.caja or not fsc.caja_module_enabled %}
+      {% if fsc.caja_module_enabled and fsc.caja and fsc.caja.codagente != fsc.user.codagente %}
       <div class="thumbnail">
-         <img src='view/img/big_lock.png' fft="acceso denegado"/>
+         <img src='view/img/big_lock.png' alt="acceso denegado"/>
       </div>
-      {elseif="!$fsc->cliente_s"}
+      {% elseif not fsc.cliente_s %}
       <div class="alert alert-danger">No hay clientes. Debes añadir al menos uno.</div>
       <div class="thumbnail">
          <img src='view/img/fuuu_face.png' alt="acceso denegado"/>
       </div>
-      {else}
-         {include="tpvmod2"}
-      {/if}
-   {elseif="$fsc->caja_module_enabled && ($fsc->terminal || $fsc->auto_d_inicial)"}
+      {% else %}
+         {% include 'tpvmod2.html.twig' %}
+      {% endif %}
+   {% elseif fsc.caja_module_enabled and (fsc.terminal or fsc.auto_d_inicial) %}
    <script type="text/javascript">
       $(document).ready(function() {
          document.f_caja.d_inicial.select();
       });
    </script>
-    <form name="f_caja" action="{$fsc->url()}" method="post" class="form">
-       {$fsc->csrf_field}
-       {if="$fsc->terminal"}
-      <input type="hidden" name="terminal" value="{$fsc->terminal->id}"/>
-      {/if}
+    <form name="f_caja" action="{{ fsc.url()|raw }}" method="post" class="form">
+       {{ csrf_field() }}
+       {% if fsc.terminal %}
+      <input type="hidden" name="terminal" value="{{ fsc.terminal.id }}"/>
+      {% endif %}
       <div class="container">
          <div class="row">
             <div class="col-sm-6 col-sm-offset-3">
                <div class="page-header">
-                  <h1>{if="$fsc->terminal"}Terminal {$fsc->terminal->id}{else}Abrir caja{/if}</h1>
+                  <h1>{% if fsc.terminal %}Terminal {{ fsc.terminal.id }}{% else %}Abrir caja{% endif %}</h1>
                </div>
                <div class="well">
                   <h2>¿Cuanto dinero hay en la caja?</h2>
@@ -46,7 +54,7 @@
          </div>
       </div>
    </form>
-   {else}
+   {% else %}
    <div class="container">
       <div class="row">
          <div class="col-sm-12">
@@ -56,41 +64,41 @@
          </div>
       </div>
       <div class="row">
-         {loop="$fsc->results"}
+         {% for terminal in fsc.results %}
          <div class="col-sm-6">
-            <a href="{$fsc->url()}&terminal={$value->id}" class="btn btn-block btn-default">
-               <span class="glyphicon glyphicon-print" aria-hidden="true"></span> &nbsp; Terminal {$value->id}
+            <a href="{{ fsc.url()|raw }}&terminal={{ terminal.id }}" class="btn btn-block btn-default">
+               <span class="glyphicon glyphicon-print" aria-hidden="true"></span> &nbsp; Terminal {{ terminal.id }}
             </a>
          </div>
-         {else}
+         {% else %}
          <div class="col-sm-12">
             <a href="index.php?page=tpv_caja#terminales" class="btn btn-block btn-info">
                <span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> &nbsp; Administrar terminales
             </a>
          </div>
-         {/loop}
+         {% endfor %}
       </div>
-      {if="$fsc->terminal_mode=='without_terminal'"}
+      {% if fsc.terminal_mode == 'without_terminal' %}
       <div class="row">
          <div class="col-sm-12">
-            <a href="{$fsc->url()}&no_terminal=1" class="btn btn-block btn-success">
+            <a href="{{ fsc.url()|raw }}&no_terminal=1" class="btn btn-block btn-success">
                <span class="glyphicon glyphicon-ok"></span> &nbsp; Continuar sin terminal
             </a>
          </div>
       </div>
-      {/if}
+      {% endif %}
    </div>
-   {/if}
-{else}
+   {% endif %}
+{% else %}
 <div class="thumbnail">
    <img src='view/img/big_lock.png' alt="Acceso denegado"/>
 </div>
-{/if}
+{% endif %}
 
-{if="$fsc->terminal"}
+{% if fsc.terminal %}
 <div class="hidden">
-   <iframe src="http://localhost:10080?terminal={$fsc->terminal->id}" height="0"></iframe>
+   <iframe src="http://localhost:10080?terminal={{ fsc.terminal.id }}" height="0"></iframe>
 </div>
-{/if}
+{% endif %}
 
-{include="footer"}
+{% include 'footer.html.twig' %}

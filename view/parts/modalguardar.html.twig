@@ -1,3 +1,12 @@
+{#
+/**
+ * Plugin: tpvmod
+ * Partial — modal de "Guardar ticket" usado por tpvmodedita.
+ * Esta parcial NO incluye csrf_field porque ya está en el <form> padre.
+ * Twig nativo (no depende de legacy_support).
+ * Migrado desde view/parts/modalguardar.html el 2026-07-18.
+ */
+#}
    <div class="modal" id="modal_guardar" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
       <div class="modal-dialog">
          <div class="modal-content">
@@ -21,44 +30,44 @@
                   Cambio:
                   <input type="text" name="tpv_cambio" id="tpv_cambio" class="form-control" disabled="disabled"/>
                </div>
-                
+
                </div>
-                 
+
                <div class="radio col-md-6">
                Guardar
                </div>
-               {loop="$fsc->tipos_a_guardar()"}
-               {if="$fsc->vienede==$value['tipo']"}
+               {% for tipo in fsc.tipos_a_guardar() %}
+               {% if fsc.vienede == tipo.tipo %}
 
                <div class="radio col-md-6">
                   <label>
-                     <input type="radio" name="tipo" value="guardar_{$value['tipo']}" checked="checked" />
-                     Guardar {$value['tipo']}
+                     <input type="radio" name="tipo" value="guardar_{{ tipo.tipo }}" checked="checked" />
+                     Guardar {{ tipo.tipo }}
                   </label>
                </div>
-               {/if}
-               {/loop}
+               {% endif %}
+               {% endfor %}
                <div class="radio col-md-6">
                Generar documento nuevo
                </div>
-               {loop="$fsc->tipos_a_guardar()"}
+               {% for tipo in fsc.tipos_a_guardar() %}
                <div class="radio col-md-6">
                   <label>
-                     <input type="radio" name="tipo" value="{$value['tipo']}" />
-                     {$value['nombre']}
+                     <input type="radio" name="tipo" value="{{ tipo.tipo }}" />
+                     {{ tipo.nombre }}
                   </label>
                </div>
-               {/loop}
+               {% endfor %}
                <div class="form-group col-md-12">
-                  <a href="{$fsc->forma_pago->url()}">Forma de pago</a>:
+                  <a href="{{ fsc.forma_pago.url()|raw }}">Forma de pago</a>:
                   <select name="forma_pago" class="form-control">
-                  {loop="$fsc->forma_pago->all()"}
-                     {if="$value->is_default()"}
-                     <option value="{$value->codpago}" selected="selected">{$value->descripcion}</option>
-                     {else}
-                     <option value="{$value->codpago}">{$value->descripcion}</option>
-                     {/if}
-                  {/loop}
+                  {% for fp in fsc.forma_pago.all() %}
+                     {% if fp.is_default() %}
+                     <option value="{{ fp.codpago }}" selected="selected">{{ fp.descripcion }}</option>
+                     {% else %}
+                     <option value="{{ fp.codpago }}">{{ fp.descripcion }}</option>
+                     {% endif %}
+                  {% endfor %}
                   </select>
                </div>
             </div>

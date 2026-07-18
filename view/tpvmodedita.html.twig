@@ -1,26 +1,36 @@
-{include="header"}
-<script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod.js?v={$fsc->today()}"></script>
+{#
+/**
+ * Plugin: tpvmod
+ * Pantalla de edición de un documento TPV existente (albarán / presupuesto /
+ * pedido / factura). Línea editor + tabs de opciones y tickets + modal de
+ * guardado.
+ * Twig nativo (no depende de legacy_support).
+ * Migrado desde view/tpvmodedita.html el 2026-07-18.
+ */
+#}
+{% include 'header.html.twig' %}
+<script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod.js?v={{ fsc.today() }}"></script>
 <script type="text/javascript">
    fs_nf0 = typeof FS_NF0 !== 'undefined' ? FS_NF0 : 2;
-   numlineas = {function="count($fsc->documento->get_lineas())"};
-   tpv_url = '{$fsc->url()}';
+   numlineas = {{ fsc.documento.get_lineas()|length }};
+   tpv_url = '{{ fsc.url()|raw }}';
    nueva_venta_url = tpv_url;
-   cliente = {function="json_encode($fsc->cliente_s)"};
-   all_impuestos = {function="json_encode($fsc->impuesto->all())"};
-   all_series = {function="json_encode($fsc->serie->all())"};
+   cliente = {{ json_encode(fsc.cliente_s)|raw }};
+   all_impuestos = {{ json_encode(fsc.impuesto.all())|raw }};
+   all_series = {{ json_encode(fsc.serie.all())|raw }};
    if(typeof all_impuestos === 'string') {
       try { all_impuestos = JSON.parse(all_impuestos); } catch(e) { all_impuestos = []; }
    }
    if(!Array.isArray(all_impuestos)) {
       all_impuestos = [];
    }
-   
+
    $(document).ready(function() {
-      
+
       $("#numlineas").val(numlineas);
       usar_serie();
       recalcular();
-      
+
       $("#ac_cliente").devbridgeAutocomplete({
          serviceUrl: tpv_url,
          paramName: 'buscar_cliente',
@@ -44,89 +54,89 @@
 
 <div class="container-fluid" style="margin-top: 10px; margin-bottom: 10px;">
     <div class="row">
-        
+
             <div class="col-md-3">
-            <a class="btn btn-xs btn-default" href="{$fsc->url()}" title="recargar la página">
+            <a class="btn btn-xs btn-default" href="{{ fsc.url()|raw }}" title="recargar la página">
                <span class="glyphicon glyphicon-refresh"></span>
             </a>
-            {if="$fsc->page->show_on_menu"}
-               {if="$fsc->page->is_default()"}
-               <a class="btn btn-xs btn-default active" href="{$fsc->url()}&amp;default_page=FALSE" title="desmarcar como página de inicio">
+            {% if fsc.page.show_on_menu %}
+               {% if fsc.page.is_default() %}
+               <a class="btn btn-xs btn-default active" href="{{ fsc.url()|raw }}&amp;default_page=FALSE" title="desmarcar como página de inicio">
                   <span class="glyphicon glyphicon-home"></span>
                </a>
-               {else}
-               <a class="btn btn-xs btn-default" href="{$fsc->url()}&amp;default_page=TRUE" title="marcar como página de inicio">
+               {% else %}
+               <a class="btn btn-xs btn-default" href="{{ fsc.url()|raw }}&amp;default_page=TRUE" title="marcar como página de inicio">
                   <span class="glyphicon glyphicon-home"></span>
                </a>
-               {/if}
-            {/if}
+               {% endif %}
+            {% endif %}
             <button type="button" id="b_tpv_guardar" class="btn btn-xs btn-primary">
-               <span class="glyphicon glyphicon-floppy-disk"></span> 
+               <span class="glyphicon glyphicon-floppy-disk"></span>
             </button>
-               <a class="btn btn-xs btn-default" href="{$fsc->url_imprimir}{$fsc->id_documento}" title="marcar como página de inicio">
+               <a class="btn btn-xs btn-default" href="{{ fsc.url_imprimir|raw }}{{ fsc.id_documento }}" title="imprimir">
                   <span class="glyphicon glyphicon-print"></span>
                </a>
             <a class="btn btn-xs btn-success" href="./index.php?page=tpvmod" title="Ir al tpv">
                <span class="glyphicon glyphicon-plus"></span>
             </a>
             </div>
-            
+
             <div class="col-md-7">
             <ol class="breadcrumb" style="margin-bottom:5px;">
-               <li><a href="{$fsc->url()}">TPVMOD</a></li>
-               <li><a href="{$fsc->url_listado}" class="text-capitalize">
-                       {$fsc->nom_documento}
+               <li><a href="{{ fsc.url()|raw }}">TPVMOD</a></li>
+               <li><a href="{{ fsc.url_listado|raw }}" class="text-capitalize">
+                       {{ fsc.nom_documento }}
                    </a></li>
                <li>
-                  {loop="$fsc->serie->all()"}
-                     {if="$value->codserie==$fsc->documento->codserie"}
-                     <a href="{$fsc->url()}&codserie={$value->codserie}" class="text-capitalize">{$value->descripcion}</a>
-                     {/if}
-                  {/loop}
+                  {% for serie in fsc.serie.all() %}
+                     {% if serie.codserie == fsc.documento.codserie %}
+                     <a href="{{ fsc.url()|raw }}&codserie={{ serie.codserie }}" class="text-capitalize">{{ serie.descripcion }}</a>
+                     {% endif %}
+                  {% endfor %}
                </li>
                <li>
-                  <a href="{$fsc->documento->cliente_url()}">{$fsc->documento->nombrecliente}</a>
+                  <a href="{{ fsc.documento.cliente_url()|raw }}">{{ fsc.documento.nombrecliente }}</a>
                </li>
-               {if="$fsc->cliente_s"}
-                  {if="$fsc->cliente_s->nombre!=$fsc->documento->nombrecliente"}
+               {% if fsc.cliente_s %}
+                  {% if fsc.cliente_s.nombre != fsc.documento.nombrecliente %}
                   <li>
-                     <a href="#" onclick="alert('Cliente conocido como: {$fsc->cliente_s->nombre}')">
+                     <a href="#" onclick="alert('Cliente conocido como: {{ fsc.cliente_s.nombre|escape('js') }}')">
                         <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span>
                      </a>
                   </li>
-                  {/if}
-               {/if}
-               <li class="active"><b>{$fsc->documento->codigo}</b></li>
-               
+                  {% endif %}
+               {% endif %}
+               <li class="active"><b>{{ fsc.documento.codigo }}</b></li>
+
             </ol>
             </div>
             <div class="col-md-2">
-                <p class="help-block">{if="$fsc->agente"}
+                <p class="help-block">{% if fsc.agente %}
                <span class="text-capitalize">
-                   {$fsc->nom_documento}
+                   {{ fsc.nom_documento }}
                </span> creado por
-               <a href="{$fsc->agente->url()}">{$fsc->agente->get_fullname()}</a>.
-               {else}
-               Sin datos de qué empleado ha creado este 
-               {$fsc->nom_documento}</p>
-               {/if}
+               <a href="{{ fsc.agente.url()|raw }}">{{ fsc.agente.get_fullname() }}</a>.
+               {% else %}
+               Sin datos de qué empleado ha creado este
+               {{ fsc.nom_documento }}</p>
+               {% endif %}
             </div>
          </div>
 </div>
 
-<form id="f_tpv" name="f_tpv" action="{$fsc->url()}" method="post" class="form">
-   <input type="hidden" name="petition_id" value="{$fsc->random_string()}"/>
+<form id="f_tpv" name="f_tpv" action="{{ fsc.url()|raw }}" method="post" class="form">
+   <input type="hidden" name="petition_id" value="{{ fsc.random_string() }}"/>
    <input type="hidden" id="numlineas" name="numlineas" value="0"/>
    <input type="hidden" id="tpv_total2" name="tpv_total2" value="0"/>
-   <input type="hidden" name="cliente" value="{$fsc->cliente_s->codcliente}"/>
-   <input type="hidden" name="id" value="{$fsc->id_documento}"/>
+   <input type="hidden" name="cliente" value="{{ fsc.cliente_s.codcliente }}"/>
+   <input type="hidden" name="id" value="{{ fsc.id_documento }}"/>
    <div class="container-fluid">
       <div class="row">
          <div class="col-sm-6">
             <div class="form-group">
                Cliente:
                <div class="input-group">
-                  <input class="form-control input-sm" type="text" name="ac_cliente" id="ac_cliente" value="{$fsc->cliente_s->nombre} Tlf:{$fsc->cliente_s->telefono1} Tlf2:{$fsc->cliente_s->telefono2}" placeholder="Buscar" autocomplete="off"/>
+                  <input class="form-control input-sm" type="text" name="ac_cliente" id="ac_cliente" value="{{ fsc.cliente_s.nombre }} Tlf:{{ fsc.cliente_s.telefono1 }} Tlf2:{{ fsc.cliente_s.telefono2 }}" placeholder="Buscar" autocomplete="off"/>
                   <span class="input-group-btn">
                      <button class="btn btn-default btn-sm" type="button" onclick="document.f_tpv.ac_cliente.value=''; document.f_tpv.ac_cliente.focus();">
                         <span class="glyphicon glyphicon-edit"></span>
@@ -141,19 +151,19 @@
          <div class="col-sm-3">
             <div class="form-group">
                Fecha:
-               <input class="form-control datepicker input-sm" type="text" name="fecha" value="{$fsc->documento->fecha}" autocomplete="off"/>            </div>
+               <input class="form-control datepicker input-sm" type="text" name="fecha" value="{{ fsc.documento.fecha }}" autocomplete="off"/>            </div>
          </div>
          <div class="col-sm-3">
             <div class="form-group">
                Atiende:
                <div class="form-control input-sm">
-                  <a href="{$fsc->agente->url()}">{$fsc->agente->get_fullname()}</a>
+                  <a href="{{ fsc.agente.url()|raw }}">{{ fsc.agente.get_fullname() }}</a>
                </div>
             </div>
          </div>
       </div>
    </div>
-   
+
    <ul class="nav nav-tabs" role="tablist">
       <li class="active">
          <a href="#tab_lineas" role="tab" data-toggle="tab">
@@ -174,7 +184,7 @@
          </a>
       </li>
    </ul>
-   
+
    <div class="tab-content">
       <div class="tab-pane active" id="tab_lineas">
          <div class="table-responsive">
@@ -186,54 +196,54 @@
                         <th style="width:30px"></th>
                         <th class="text-right" style="width:80px">Precio</th>
                         <th class="text-right" style="width:80px">Neto</th>
-                        <th class="text-right" style="width:90px">{#FS_IVA#}</th>
+                        <th class="text-right" style="width:90px">{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
                     <th class="text-right" style="width:90px">Total</th>
                </thead>
                <tbody id="lineas_albaran">
 
-                  {loop="$fsc->documento->get_lineas()"}
-                     <tr id="linea_{$counter+1}">
+                  {% for linea in fsc.documento.get_lineas() %}
+                     <tr id="linea_{{ loop.index }}">
                         <td>
-                            <input class="input-sm" type="hidden" name="idlinea_{$counter+1}" value="{$value->idlinea}"/>
-                           <input class="input-sm" type="hidden" name="referencia_{$counter+1}" value="{$value->referencia}"/>
-                           <input class="input-sm" type="hidden" id="iva_1" name="iva_{$counter+1}" value="21">
-                           <input class="input-sm" type="hidden" id="recargo_1" name="recargo_{$counter+1}" value="0">
-                           <input class="input-sm" type="hidden" id="irpf_1" name="irpf_{$counter+1}" value="0">
+                            <input class="input-sm" type="hidden" name="idlinea_{{ loop.index }}" value="{{ linea.idlinea }}"/>
+                           <input class="input-sm" type="hidden" name="referencia_{{ loop.index }}" value="{{ linea.referencia }}"/>
+                           <input class="input-sm" type="hidden" id="iva_1" name="iva_{{ loop.index }}" value="21">
+                           <input class="input-sm" type="hidden" id="recargo_1" name="recargo_{{ loop.index }}" value="0">
+                           <input class="input-sm" type="hidden" id="irpf_1" name="irpf_{{ loop.index }}" value="0">
                            <div class="form-control input-sm">
-                              <a target="_blank" href="{$value->articulo_url()}">{$value->referencia}</a>
+                              <a target="_blank" href="{{ linea.articulo_url()|raw }}">{{ linea.referencia }}</a>
                            </div>
                         </td>
-                        <td><textarea class="form-control input-sm" name="desc_{$counter+1}" rows="1" onclick="this.select()">{$value->descripcion}</textarea></td>
+                        <td><textarea class="form-control input-sm" name="desc_{{ loop.index }}" rows="1" onclick="this.select()">{{ linea.descripcion }}</textarea></td>
                         <td>
-                           <input type="number" step="any" id="cantidad_{$counter+1}" class="form-control text-right input-sm" name="cantidad_{$counter+1}"
-                                  value="{$value->cantidad}" onchange="recalcular()" onkeyup="recalcular()" autocomplete="off" value="1"/>
+                           <input type="number" step="any" id="cantidad_{{ loop.index }}" class="form-control text-right input-sm" name="cantidad_{{ loop.index }}"
+                                  value="{{ linea.cantidad }}" onchange="recalcular()" onkeyup="recalcular()" autocomplete="off" value="1"/>
                         </td>
                         <td>
-                           <button class="btn btn-sm btn-danger" type="button" onclick="$('#linea_{$counter+1}').remove();recalcular();">
+                           <button class="btn btn-sm btn-danger" type="button" onclick="$('#linea_{{ loop.index }}').remove();recalcular();">
                               <span class="glyphicon glyphicon-trash"></span>
                            </button>
                         </td>
                         <td>
-                           <input type="text" class="form-control text-right input-sm" id="pvp_{$counter+1}" name="pvp_{$counter+1}" value="{$value->pvpunitario}"
+                           <input type="text" class="form-control text-right input-sm" id="pvp_{{ loop.index }}" name="pvp_{{ loop.index }}" value="{{ linea.pvpunitario }}"
                                   onkeyup="recalcular()" onclick="this.select()" autocomplete="off"/>
                         </td>
                         <td>
-                           <input type="text" class="form-control text-right input-sm" id="neto_{$counter+1}" name="neto_{$counter+1}" readonly="">
+                           <input type="text" class="form-control text-right input-sm" id="neto_{{ loop.index }}" name="neto_{{ loop.index }}" readonly="">
                         </td>
                         <td>
-                           <select class="form-control input-sm" id="iva_{$counter+1}" name="iva_{$counter+1}" onchange="ajustar_iva('{$counter+1}')">
-                           {loop="$fsc->impuesto->all()"}
-                              {if="$value1->codimpuesto==$value2->codimpuesto OR $value1->iva==$value2->iva"}
-                              <option value="{$value2->iva}" selected="">{$value2->iva}%</option>
-                              {else}
-                              <option value="{$value2->iva}">{$value2->iva}%</option>
-                              {/if}
-                           {/loop}
+                           <select class="form-control input-sm" id="iva_{{ loop.index }}" name="iva_{{ loop.index }}" onchange="ajustar_iva('{{ loop.index }}')">
+                           {% for impuesto in fsc.impuesto.all() %}
+                              {% if linea.codimpuesto == impuesto.codimpuesto or linea.iva == impuesto.iva %}
+                              <option value="{{ impuesto.iva }}" selected="">{{ impuesto.iva }}%</option>
+                              {% else %}
+                              <option value="{{ impuesto.iva }}">{{ impuesto.iva }}%</option>
+                              {% endif %}
+                           {% endfor %}
                            </select>
                         </td>
-                        <td><input type="text" class="form-control text-right input-sm" id="total_{$counter+1}" name="total_{$counter+1}" onchange="ajustar_total()" onclick="this.select()" autocomplete="off"></td>
+                        <td><input type="text" class="form-control text-right input-sm" id="total_{{ loop.index }}" name="total_{{ loop.index }}" onchange="ajustar_total()" onclick="this.select()" autocomplete="off"></td>
                      </tr>
-                     {/loop}
+                     {% endfor %}
                   <tr class="bg-info">
                      <td><input id="i_new_line" class="form-control input-sm" type="text" placeholder="Buscar para añadir..." autocomplete="off"/></td>
                      <td>
@@ -242,62 +252,62 @@
                            </a>
                      </td>
                      <td colspan="3" class="text-right">Totales:</td>
-                     <td><div id="aneto" class="form-control text-right input-sm" style="font-weight: bold;">{$fsc->show_numero(0)}</div></td>
-                     <td><div id="aiva" class="form-control text-right input-sm" style="font-weight: bold;">{$fsc->show_numero(0)}</div></td>
-                     <td><div id="atotal" class="form-control text-right input-sm" style="font-weight: bold;">{$fsc->show_numero(0)}</div></td>
+                     <td><div id="aneto" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
+                     <td><div id="aiva" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
+                     <td><div id="atotal" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                   </tr>
                </tbody>
             </table>
          </div>
       </div>
       <div class="tab-pane" id="tab_opciones">
-         {if="$fsc->terminal"}
-         <input class="input-sm" type="hidden" name="almacen" value="{$fsc->terminal->codalmacen}"/>
-         <input class="input-sm" type="hidden" name="serie" value="{$fsc->terminal->codserie}"/>
-         {/if}
+         {% if fsc.terminal %}
+         <input class="input-sm" type="hidden" name="almacen" value="{{ fsc.terminal.codalmacen }}"/>
+         <input class="input-sm" type="hidden" name="serie" value="{{ fsc.terminal.codserie }}"/>
+         {% endif %}
          <div class="container-fluid" style="margin-top: 10px; margin-bottom: 20px;">
             <div class="row">
-               {if="!$fsc->terminal"}
+               {% if not fsc.terminal %}
                <div class="col-sm-3">
                   <div class="form-group">
-                     <a href="{$fsc->almacen->url()}">Almacén</a>:
+                     <a href="{{ fsc.almacen.url()|raw }}">Almacén</a>:
                      <select name="almacen" class="form-control input-sm">
-                        {loop="$fsc->almacen->all()"}
-                           {if="$value->is_default()"}
-                           <option value="{$value->codalmacen}" selected='selected'>{$value->nombre}</option>
-                           {else}
-                           <option value="{$value->codalmacen}">{$value->nombre}</option>
-                           {/if}
-                        {/loop}
+                        {% for almacen in fsc.almacen.all() %}
+                           {% if almacen.is_default() %}
+                           <option value="{{ almacen.codalmacen }}" selected='selected'>{{ almacen.nombre }}</option>
+                           {% else %}
+                           <option value="{{ almacen.codalmacen }}">{{ almacen.nombre }}</option>
+                           {% endif %}
+                        {% endfor %}
                      </select>
                   </div>
                </div>
                <div class="col-sm-3">
                   <div class="form-group">
-                     <a href="{$fsc->serie->url()}">Serie</a>:
+                     <a href="{{ fsc.serie.url()|raw }}">Serie</a>:
                      <select name="serie" class="form-control input-sm" id="codserie" onchange="usar_serie();recalcular();">
-                        {loop="$fsc->serie->all()"}
-                           {if="$value->is_default()"}
-                           <option value="{$value->codserie}" selected='selected'>{$value->descripcion}</option>
-                           {else}
-                           <option value="{$value->codserie}">{$value->descripcion}</option>
-                           {/if}
-                        {/loop}
+                        {% for serie in fsc.serie.all() %}
+                           {% if serie.is_default() %}
+                           <option value="{{ serie.codserie }}" selected='selected'>{{ serie.descripcion }}</option>
+                           {% else %}
+                           <option value="{{ serie.codserie }}">{{ serie.descripcion }}</option>
+                           {% endif %}
+                        {% endfor %}
                      </select>
                   </div>
                </div>
-               {/if}
+               {% endif %}
                <div class="col-sm-3">
                   <div class="form-group">
-                     <a href="{$fsc->divisa->url()}">Divisa</a>:
+                     <a href="{{ fsc.divisa.url()|raw }}">Divisa</a>:
                      <select name="divisa" class="form-control input-sm">
-                        {loop="$fsc->divisa->all()"}
-                           {if="$value->is_default()"}
-                           <option value="{$value->coddivisa}" selected="selected">{$value->descripcion}</option>
-                           {else}
-                           <option value="{$value->coddivisa}">{$value->descripcion}</option>
-                           {/if}
-                        {/loop}
+                        {% for divisa in fsc.divisa.all() %}
+                           {% if divisa.is_default() %}
+                           <option value="{{ divisa.coddivisa }}" selected="selected">{{ divisa.descripcion }}</option>
+                           {% else %}
+                           <option value="{{ divisa.coddivisa }}">{{ divisa.descripcion }}</option>
+                           {% endif %}
+                        {% endfor %}
                      </select>
                   </div>
                </div>
@@ -322,13 +332,13 @@
                <div class="col-sm-4">
                   <div class="checkbox">
                      <label>
-                         <input class="input-sm" type="checkbox" name="imprimir_desc" value="TRUE"{if="$fsc->imprimir_descripciones"} checked="checked"{/if}/>
+                         <input class="input-sm" type="checkbox" name="imprimir_desc" value="TRUE"{% if fsc.imprimir_descripciones %} checked="checked"{% endif %}/>
                         Imprimir descripciones
                      </label>
                   </div>
                   <div class="checkbox">
                      <label>
-                         <input class="input-sm" type="checkbox" name="imprimir_obs" value="TRUE"{if="$fsc->imprimir_observaciones"} checked="checked"{/if}/>
+                         <input class="input-sm" type="checkbox" name="imprimir_obs" value="TRUE"{% if fsc.imprimir_observaciones %} checked="checked"{% endif %}/>
                         Imprimir observaciones
                      </label>
                   </div>
@@ -345,7 +355,7 @@
          </div>
       </div>
    </div>
-   
+
    <div class="container-fluid">
       <div class="row" style="margin-bottom: 30px;">
       </div>
@@ -353,13 +363,13 @@
          <div class="col-xs-12">
             <div class="form-group">
                Observaciones:
-               <textarea class="form-control input-sm" name="observaciones" rows="4">{$fsc->documento->observaciones}</textarea>
+               <textarea class="form-control input-sm" name="observaciones" rows="4">{{ fsc.documento.observaciones }}</textarea>
             </div>
          </div>
       </div>
    </div>
    <input class="input-sm" type="hidden" name="vienede" value="albaran">
-{include="parts/modalguardar"}
+{% include 'parts/modalguardar.html.twig' %}
 </form>
 
 <div class="modal" id="modal_articulos">
@@ -370,7 +380,7 @@
             <h4 class="modal-title">Buscar artículos</h4>
          </div>
          <div class="modal-body">
-            <form id="f_buscar_articulos" name="f_buscar_articulos" action="{$fsc->url()}" method="post" class="form">
+            <form id="f_buscar_articulos" name="f_buscar_articulos" action="{{ fsc.url()|raw }}" method="post" class="form">
                <input type="hidden" name="codcliente"/>
                <div class="container-fluid">
                   <div class="row">
@@ -396,9 +406,9 @@
                         <select class="form-control input-sm" name="codfamilia" onchange="buscar_articulos()">
                            <option value="">Todas las familias</option>
                            <option value="">------</option>
-                           {loop="$fsc->familia->all()"}
-                           <option value="{$value->codfamilia}">{$value->descripcion}</option>
-                           {/loop}
+                           {% for familia in fsc.familia.all() %}
+                           <option value="{{ familia.codfamilia }}">{{ familia.descripcion }}</option>
+                           {% endfor %}
                         </select>
                      </div>
                   </div>
@@ -409,4 +419,4 @@
       </div>
    </div>
 </div>
-{include="footer"}
+{% include 'footer.html.twig' %}
