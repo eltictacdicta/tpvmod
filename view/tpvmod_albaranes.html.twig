@@ -1,4 +1,13 @@
-{include="header"}
+{#
+/**
+ * Plugin: tpvmod
+ * Listado de albaranes generados por el TPV. Paginado, con búsqueda
+ * por cliente / serie / agente / fecha y modal de búsqueda de líneas.
+ * Twig nativo (no depende de legacy_support).
+ * Migrado desde view/tpvmod_albaranes.html el 2026-07-18.
+ */
+#}
+{% include 'header.html.twig' %}
 
 <script type="text/javascript">
    function buscar_lineas()
@@ -11,7 +20,7 @@
       {
          $.ajax({
             type: 'POST',
-            url: '{$fsc->url()}',
+            url: '{{ fsc.url()|raw }}',
             dataType: 'html',
             data: $('form[name=f_buscar_lineas]').serialize(),
             success: function(datos) {
@@ -28,12 +37,12 @@
    function mas_resultados(num)
    {
       document.f_buscar_lineas.offset.value = parseInt(document.f_buscar_lineas.offset.value) + parseInt(num);
-      
+
       if(document.f_buscar_lineas.offset.value < 0)
       {
          document.f_buscar_lineas.offset.value = 0;
       }
-      
+
       buscar_lineas();
    }
    function clean_cliente()
@@ -43,11 +52,11 @@
       document.f_custom_search.ac_cliente.focus();
    }
    $(document).ready(function() {
-      
-      {if="$fsc->mostrar=='buscar'"}
+
+      {% if fsc.mostrar == 'buscar' %}
       document.f_custom_search.query.focus();
-      {/if}
-      
+      {% endif %}
+
       $('#b_buscar_lineas').click(function(event) {
          event.preventDefault();
          $('#modal_buscar_lineas').modal('show');
@@ -61,7 +70,7 @@
          buscar_lineas();
       });
       $("#ac_cliente").devbridgeAutocomplete({
-         serviceUrl: '{$fsc->url()}',
+         serviceUrl: '{{ fsc.url()|raw }}',
          paramName: 'buscar_cliente',
          onSelect: function (suggestion) {
             if(suggestion)
@@ -84,29 +93,29 @@
                <span class="glyphicon glyphicon-circle-arrow-left"></span>
             </a>
          <div class="btn-group hidden-xs">
-            <a class="btn btn-sm btn-default" href="{$fsc->url()}" title="Recargar la página">
+            <a class="btn btn-sm btn-default" href="{{ fsc.url()|raw }}" title="Recargar la página">
                <span class="glyphicon glyphicon-refresh"></span>
             </a>
-            {if="$fsc->page->is_default()"}
-            <a class="btn btn-sm btn-default active" href="{$fsc->url()}&amp;default_page=FALSE" title="desmarcar como página de inicio">
+            {% if fsc.page.is_default() %}
+            <a class="btn btn-sm btn-default active" href="{{ fsc.url()|raw }}&amp;default_page=FALSE" title="desmarcar como página de inicio">
                <span class="glyphicon glyphicon-home"></span>
             </a>
-            {else}
-            <a class="btn btn-sm btn-default" href="{$fsc->url()}&amp;default_page=TRUE" title="marcar como página de inicio">
+            {% else %}
+            <a class="btn btn-sm btn-default" href="{{ fsc.url()|raw }}&amp;default_page=TRUE" title="marcar como página de inicio">
                <span class="glyphicon glyphicon-home"></span>
             </a>
-            {/if}
+            {% endif %}
          </div>
          <div class="btn-group">
             <a class="btn btn-sm btn-success" href="index.php?page=tpvmod">
                <span class="glyphicon glyphicon-plus"></span>
                <span class="hidden-xs">&nbsp; Nuevo</span>
             </a>
-            {loop="$fsc->extensions"}
-               {if="$value->type=='button'"}
-               <a href="index.php?page={$value->from}{$value->params}" class="btn btn-sm btn-default">{$value->text}</a>
-               {/if}
-            {/loop}
+            {% for value in fsc.extensions %}
+               {% if value.type == 'button' %}
+               <a href="index.php?page={{ value.from }}{{ value.params }}" class="btn btn-sm btn-default">{{ value.text|raw }}</a>
+               {% endif %}
+            {% endfor %}
          </div>
       </div>
       <div class="col-sm-4 col-xs-6 text-right">
@@ -119,31 +128,31 @@
             </button>
             <ul class="dropdown-menu dropdown-menu-right">
                <li>
-                  <a href="{$fsc->url()}&mostrar={$fsc->mostrar}&order=fecha_desc">
+                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_desc">
                      <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
                      &nbsp; Fecha &nbsp;
-                     {if="$fsc->order=='fecha DESC'"}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{/if}
+                     {% if fsc.order == 'fecha DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                   </a>
                </li>
                <li>
-                  <a href="{$fsc->url()}&mostrar={$fsc->mostrar}&order=fecha_asc">
+                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_asc">
                      <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
                      &nbsp; Fecha &nbsp;
-                     {if="$fsc->order=='fecha ASC'"}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{/if}
+                     {% if fsc.order == 'fecha ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                   </a>
                </li>
                <li>
-                  <a href="{$fsc->url()}&mostrar={$fsc->mostrar}&order=codigo_desc">
+                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=codigo_desc">
                      <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
                      &nbsp; Código &nbsp;
-                     {if="$fsc->order=='codigo DESC'"}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{/if}
+                     {% if fsc.order == 'codigo DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                   </a>
                </li>
                <li>
-                  <a href="{$fsc->url()}&mostrar={$fsc->mostrar}&order=codigo_asc">
+                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=codigo_asc">
                      <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
                      &nbsp; Código &nbsp;
-                     {if="$fsc->order=='codigo ASC'"}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{/if}
+                     {% if fsc.order == 'codigo ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                   </a>
                </li>
             </ul>
@@ -153,42 +162,43 @@
 </div>
 
 <ul class="nav nav-tabs" role="tablist">
-   <li{if="$fsc->mostrar=='todo'"} class="active"{/if}>
-      <a href="{$fsc->url()}&mostrar=todo">
-         Todos los {#FS_ALBARANES#}
+   <li{% if fsc.mostrar == 'todo' %} class="active"{% endif %}>
+      <a href="{{ fsc.url()|raw }}&amp;mostrar=todo">
+         Todos los {% if defined('FS_ALBARANES') %}{{ constant('FS_ALBARANES') }}{% endif %}
       </a>
    </li>
-   <li{if="$fsc->mostrar=='pendientes'"} class="active"{/if}>
-      <a href="{$fsc->url()}&mostrar=pendientes">
+   <li{% if fsc.mostrar == 'pendientes' %} class="active"{% endif %}>
+      <a href="{{ fsc.url()|raw }}&amp;mostrar=pendientes">
          <span class="glyphicon glyphicon-time"></span>
          <span class="hidden-xs">&nbsp; Pendientes</span>
-         <span class="hidden-xs badge">{$fsc->total_pendientes()}</span>
+         <span class="hidden-xs badge">{{ fsc.total_pendientes() }}</span>
       </a>
    </li>
-   <li{if="$fsc->mostrar=='buscar'"} class="active"{/if}>
-      <a href="{$fsc->url()}&mostrar=buscar" title="Buscar">
+   <li{% if fsc.mostrar == 'buscar' %} class="active"{% endif %}>
+      <a href="{{ fsc.url()|raw }}&amp;mostrar=buscar" title="Buscar">
          <span class="glyphicon glyphicon-search"></span>
-         {if="$fsc->num_resultados!==''"}
-         <span class="hidden-xs badge">{$fsc->num_resultados}</span>
-         {/if}
+         {% if fsc.num_resultados != '' %}
+         <span class="hidden-xs badge">{{ fsc.num_resultados }}</span>
+         {% endif %}
       </a>
    </li>
 </ul>
 
-{if="$fsc->mostrar=='buscar'"}
+{% if fsc.mostrar == 'buscar' %}
 <br/>
-<form name="f_custom_search" action="{$fsc->url()}" method="post" class="form">
-   {if="$fsc->cliente"}
-   <input type="hidden" name="codcliente" value="{$fsc->cliente->codcliente}"/>
-   {else}
+<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="post" class="form">
+   {{ csrf_field() }}
+   {% if fsc.cliente %}
+   <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
+   {% else %}
    <input type="hidden" name="codcliente"/>
-   {/if}
+   {% endif %}
    <div class="container-fluid">
       <div class="row">
          <div class="col-sm-2">
             <div class="form-group">
                <div class="input-group">
-                  <input class="form-control" type="text" name="query" value="{$fsc->query}" autocomplete="off" placeholder="Buscar">
+                  <input class="form-control" type="text" name="query" value="{{ fsc.query }}" autocomplete="off" placeholder="Buscar">
                   <span class="input-group-btn">
                      <button class="btn btn-primary hidden-sm" type="submit">
                         <span class="glyphicon glyphicon-search"></span>
@@ -202,13 +212,13 @@
                <select class="form-control" name="codserie" onchange="this.form.submit()">
                   <option value="">Cualquier serie</option>
                   <option value="">-----</option>
-                  {loop="$fsc->serie->all()"}
-                     {if="$value->codserie==$fsc->codserie"}
-                     <option value="{$value->codserie}" selected="">{$value->descripcion}</option>
-                     {else}
-                     <option value="{$value->codserie}">{$value->descripcion}</option>
-                     {/if}
-                  {/loop}
+                  {% for value in fsc.serie.all() %}
+                     {% if value.codserie == fsc.codserie %}
+                     <option value="{{ value.codserie }}" selected="">{{ value.descripcion }}</option>
+                     {% else %}
+                     <option value="{{ value.codserie }}">{{ value.descripcion }}</option>
+                     {% endif %}
+                  {% endfor %}
                </select>
             </div>
          </div>
@@ -217,24 +227,24 @@
                <select name="codagente" class="form-control" onchange="this.form.submit()">
                   <option value="">Cualquier empleado</option>
                   <option value="">------</option>
-                  {loop="$fsc->agente->all()"}
-                     {if="$value->codagente==$fsc->codagente"}
-                     <option value="{$value->codagente}" selected="">{$value->get_fullname()}</option>
-                     {else}
-                     <option value="{$value->codagente}">{$value->get_fullname()}</option>
-                     {/if}
-                  {/loop}
+                  {% for value in fsc.agente.all() %}
+                     {% if value.codagente == fsc.codagente %}
+                     <option value="{{ value.codagente }}" selected="">{{ value.get_fullname() }}</option>
+                     {% else %}
+                     <option value="{{ value.codagente }}">{{ value.get_fullname() }}</option>
+                     {% endif %}
+                  {% endfor %}
                </select>
             </div>
          </div>
          <div class="col-sm-2">
             <div class="form-group">
                <div class="input-group">
-                  {if="$fsc->cliente"}
-                  <input class="form-control" type="text" name="ac_cliente" value="{$fsc->cliente->nombre}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off"/>
-                  {else}
+                  {% if fsc.cliente %}
+                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off"/>
+                  {% else %}
                   <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off"/>
-                  {/if}
+                  {% endif %}
                   <span class="input-group-btn">
                      <button class="btn btn-default" type="button" onclick="clean_cliente()">
                         <span class="glyphicon glyphicon-remove"></span>
@@ -245,25 +255,25 @@
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <input type="text" name="desde" value="{$fsc->desde}" class="form-control datepicker" placeholder="Desde" autocomplete="off" onchange="this.form.submit()"/>
+               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off" onchange="this.form.submit()"/>
             </div>
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <input type="text" name="hasta" value="{$fsc->hasta}" class="form-control datepicker" placeholder="Hasta" autocomplete="off" onchange="this.form.submit()"/>
+               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off" onchange="this.form.submit()"/>
             </div>
          </div>
       </div>
    </div>
 </form>
-{/if}
+{% endif %}
 
 <div class="table-responsive">
    <table class="table table-hover">
       <thead>
          <tr>
             <th></th>
-            <th class="text-left">Código + {#FS_NUMERO2#}</th>
+            <th class="text-left">Código + {% if defined('FS_NUMERO2') %}{{ constant('FS_NUMERO2') }}{% endif %}</th>
             <th class="text-left">Cliente</th>
             <th class="text-left">Observaciones</th>
             <th class="text-right">Total</th>
@@ -271,43 +281,43 @@
             <th class="text-right hidden-sm">Hora</th>
          </tr>
       </thead>
-      {loop="$fsc->resultados"}
-      <tr class="clickableRow {if="!$value->ptefactura"} success{elseif="$value->total<=0"} warning{/if}" href="./index.php?page=tpvmod&edita=albaran&id={$value->idalbaran}">
+      {% for value in fsc.resultados %}
+      <tr class="clickableRow {% if not value.ptefactura %}success{% elseif value.total <= 0 %}warning{% endif %}" href="./index.php?page=tpvmod&amp;edita=albaran&amp;id={{ value.idalbaran }}">
          <td class="text-center">
-            {if="!$value->ptefactura"}
-            <span class="glyphicon glyphicon-paperclip" title="El {#FS_ALBARAN#} tiene vinculado una factura"></span>
-            {/if}
-            {if="$value->femail"}
-            <span class="glyphicon glyphicon-send" title="El {#FS_ALBARAN#} fue enviado por email el {$value->femail}"></span>
-            {/if}
+            {% if not value.ptefactura %}
+            <span class="glyphicon glyphicon-paperclip" title="El {% if defined('FS_ALBARAN') %}{{ constant('FS_ALBARAN') }}{% endif %} tiene vinculado una factura"></span>
+            {% endif %}
+            {% if value.femail %}
+            <span class="glyphicon glyphicon-send" title="El {% if defined('FS_ALBARAN') %}{{ constant('FS_ALBARAN') }}{% endif %} fue enviado por email el {{ value.femail }}"></span>
+            {% endif %}
          </td>
-         <td><a href="./index.php?page=tpvmod&edita=albaran&id={$value->idalbaran}">{$value->codigo}</a> {$value->numero2}</td>
+         <td><a href="./index.php?page=tpvmod&amp;edita=albaran&amp;id={{ value.idalbaran }}">{{ value.codigo }}</a> {{ value.numero2 }}</td>
          <td>
-            {$value->nombrecliente}
+            {{ value.nombrecliente }}
 
-            <a href="{$fsc->url()}&codcliente={$value->codcliente}" class="cancel_clickable" title="Ver más {#FS_ALBARANES#} de {$value->nombrecliente}">[+]</a>
+            <a href="{{ fsc.url()|raw }}&amp;codcliente={{ value.codcliente }}" class="cancel_clickable" title="Ver más {% if defined('FS_ALBARANES') %}{{ constant('FS_ALBARANES') }}{% endif %} de {{ value.nombrecliente }}">[+]</a>
          </td>
-         <td>{$value->observaciones_resume()}</td>
-         <td class="text-right">{$fsc->show_precio($value->total, $value->coddivisa)}</td>
+         <td>{{ value.observaciones_resume() }}</td>
+         <td class="text-right">{{ fsc.show_precio(value.total, value.coddivisa) }}</td>
          <td class="text-right">
-            {if="$value->fecha==$fsc->today()"}<b>{$value->fecha}</b>{else}{$value->fecha}{/if}
+            {% if value.fecha == fsc.today() %}<b>{{ value.fecha }}</b>{% else %}{{ value.fecha }}{% endif %}
          </td>
-         <td class="text-right hidden-sm">{$value->hora}</td>
+         <td class="text-right hidden-sm">{{ value.hora }}</td>
       </tr>
-      {else}
+      {% else %}
       <tr class="warning">
          <td></td>
-         <td colspan="6">Ningún {#FS_ALBARAN#} encontrado. Pulsa el botón <b>Nuevo</b> para crear uno.</td>
+         <td colspan="6">Ningún {% if defined('FS_ALBARAN') %}{{ constant('FS_ALBARAN') }}{% endif %} encontrado. Pulsa el botón <b>Nuevo</b> para crear uno.</td>
       </tr>
-      {/loop}
-      {if="$fsc->total_resultados!==''"}
+      {% endfor %}
+      {% if fsc.total_resultados != '' %}
       <tr>
          <td colspan="5" class="text-right">
-            {$fsc->total_resultados_txt} &nbsp; <b>{$fsc->show_precio($fsc->total_resultados)}</b>
+            {{ fsc.total_resultados_txt }} &nbsp; <b>{{ fsc.show_precio(fsc.total_resultados) }}</b>
          </td>
          <td colspan="2"></td>
       </tr>
-      {/if}
+      {% endif %}
    </table>
 </div>
 
@@ -315,17 +325,18 @@
    <div class="row">
       <div class="col-sm-12 text-center">
          <ul class="pagination">
-            {loop="$fsc->paginas()"}
-            <li{if="$value['actual']"} class="active"{/if}>
-               <a href="{$value['url']}">{$value['num']}</a>
+            {% for value in fsc.paginas() %}
+            <li{% if value['actual'] %} class="active"{% endif %}>
+               <a href="{{ value['url']|raw }}">{{ value['num'] }}</a>
             </li>
-            {/loop}
+            {% endfor %}
          </ul>
       </div>
    </div>
 </div>
 
-<form class="form" role="form" id="f_buscar_lineas" name="f_buscar_lineas" action ="{$fsc->url()}" method="post">
+<form class="form" role="form" id="f_buscar_lineas" name="f_buscar_lineas" action="{{ fsc.url()|raw }}" method="post">
+   {{ csrf_field() }}
    <input type="hidden" name="offset" value="0"/>
    <div class="modal" id="modal_buscar_lineas">
       <div class="modal-dialog" style="width: 99%; max-width: 950px;">
@@ -333,17 +344,17 @@
             <div class="modal-header">
                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                <h4 class="modal-title">Buscar en las líneas</h4>
-               {if="$fsc->cliente"}
+               {% if fsc.cliente %}
                <p class="help-block">
-                  Estas buscando en las líneas de los {#FS_ALBARANES#} de {$fsc->cliente->nombre}.
+                  Estas buscando en las líneas de los {% if defined('FS_ALBARANES') %}{{ constant('FS_ALBARANES') }}{% endif %} de {{ fsc.cliente.nombre }}.
                </p>
-               {else}
-               <p class="help-block">Si quieres, puede <a href="{$fsc->url()}&mostrar=buscar">filtrar por cliente</a>.</p>
-               {/if}
+               {% else %}
+               <p class="help-block">Si quieres, puede <a href="{{ fsc.url()|raw }}&amp;mostrar=buscar">filtrar por cliente</a>.</p>
+               {% endif %}
             </div>
             <div class="modal-body">
-               {if="$fsc->cliente"}
-               <input type="hidden" name="codcliente" value="{$fsc->cliente->codcliente}"/>
+               {% if fsc.cliente %}
+               <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
                <div class="container-fluid">
                   <div class="row">
                      <div class="col-lg-6 col-md-6 col-sm-6">
@@ -363,7 +374,7 @@
                      </div>
                   </div>
                </div>
-               {else}
+               {% else %}
                <div class="input-group">
                   <input class="form-control" type="text" name="buscar_lineas" placeholder="Referencia" autocomplete="off"/>
                   <span class="input-group-btn">
@@ -372,7 +383,7 @@
                      </button>
                   </span>
                </div>
-               {/if}
+               {% endif %}
             </div>
             <div id="search_results" class="table-responsive"></div>
          </div>
@@ -380,4 +391,4 @@
    </div>
 </form>
 
-{include="footer"}
+{% include 'footer.html.twig' %}
