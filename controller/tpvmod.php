@@ -34,7 +34,6 @@ require_model('impuesto.php');
 require_model('serie.php');
 require_model('tarifa.php');
 require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
-require_once dirname(__DIR__, 3) . '/base/fs_session_manager.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
 
 class tpvmod extends fs_controller
@@ -60,7 +59,6 @@ class tpvmod extends fs_controller
    public $terminal;
    public $terminal_mode = 'with_terminal';
    public $auto_d_inicial;   /// TRUE when 0 terminals + without_terminal → show d_inicial form directly (spec #17)
-   public $csrf_field;       /// HTML of the CSRF hidden input (for RainTPL forms — fs_session_manager::csrfField())
    public $ultimas_compras;
    public $ultimas_ventas;
    public $tipo="factura";
@@ -103,10 +101,6 @@ class tpvmod extends fs_controller
       $settings0 = new fs_settings();
       $candidate0 = (string) $settings0->get('tpvmod_terminal_mode', 'with_terminal');
       $this->terminal_mode = tpvmod_terminal_mode_effective($candidate0);
-
-      /// CSRF field HTML for RainTPL forms (this plugin's templates are
-      /// RainTPL, not Twig, so {csrf_field()} is rendered as literal text).
-      $this->csrf_field = \fs_session_manager::csrfField();
 
       if( isset($_REQUEST['buscar_cliente']) )
       {

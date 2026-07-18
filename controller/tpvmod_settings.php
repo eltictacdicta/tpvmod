@@ -19,7 +19,6 @@
 
 require_once dirname(__DIR__, 3) . '/base/fs_controller.php';
 require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
-require_once dirname(__DIR__, 3) . '/base/fs_session_manager.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
 
 /**
@@ -37,7 +36,6 @@ class tpvmod_settings extends fs_controller
 {
    public $terminal_mode;
    public $terminal_settings_available;
-   public $csrf_field;       /// HTML of the CSRF hidden input (for RainTPL forms)
 
    public function __construct()
    {
@@ -52,9 +50,6 @@ class tpvmod_settings extends fs_controller
       $this->terminal_mode = tpvmod_terminal_mode_effective(
          (string) $settings->get('tpvmod_terminal_mode', 'with_terminal')
       );
-
-      // CSRF field HTML for RainTPL (not Twig, so {csrf_field()} would render literal).
-      $this->csrf_field = \fs_session_manager::csrfField();
 
       if ($_SERVER['REQUEST_METHOD'] === 'POST')
       {
