@@ -1,0 +1,113 @@
+{# tpvmod — ajax article price detail (debt-fill; best-effort, articulo only) #}
+{% if fsc.get_errors() %}
+<div class="alert alert-danger">
+   <ul>{% for value in fsc.get_errors() %}<li>{{ value }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if fsc.get_messages() %}
+<div class="alert alert-success">
+   <ul>{% for value in fsc.get_messages() %}<li>{{ value }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if fsc.articulo %}
+{% set desc_b64 = fsc.articulo.descripcion|base64_encode %}
+{% if fsc.articulo.stockfis <= 0 and not fsc.articulo.controlstock %}
+   {% set funcion = 'sin_stock' %}
+{% elseif fsc.articulo.tipo %}
+   {% set funcion = 'add_articulo_' ~ fsc.articulo.tipo %}
+{% else %}
+   {% set funcion = 'add_articulo' %}
+{% endif %}
+
+<div class="table-responsive">
+   <table class="table table-hover">
+      <thead>
+         <tr>
+            <th class="text-left">Referencia</th>
+            <th class="text-right">Stock</th>
+         </tr>
+      </thead>
+      <tr>
+         <td><a target="_blank" href="{{ fsc.articulo.url() }}">{{ fsc.articulo.referencia }}</a></td>
+         {% if fsc.articulo.stockfis < fsc.articulo.stockmin %}
+         <td class="text-right danger">{{ fsc.articulo.stockfis }}</td>
+         {% else %}
+         <td class="text-right">{{ fsc.articulo.stockfis }}</td>
+         {% endif %}
+      </tr>
+   </table>
+</div>
+{% if fsc.articulo.bloqueado %}
+<div class="alert alert-danger">Artículo bloqueado</div>
+{% endif %}
+<p class="help-block" style="margin: 5px;">{{ fsc.articulo.descripcion }}</p>
+<div class="table-responsive">
+   <table class="table table-hover">
+      <thead>
+         <tr>
+            <th class="text-left">Precios</th>
+            <th class="text-left">Diferencia</th>
+            <th class="text-right">Precio</th>
+            <th class="text-right">Precio+{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
+            <th></th>
+         </tr>
+      </thead>
+      {% if fsc.articulo.preciocoste() != 0 %}
+      <tr>
+         <td>Coste</td>
+         <td>-</td>
+         <td class="text-right">{{ fsc.show_precio(fsc.articulo.preciocoste()) }}</td>
+         <td class="text-right">
+            <a href="#" onclick="{{ funcion }}('{{ fsc.articulo.referencia }}','{{ desc_b64 }}','{{ fsc.articulo.preciocoste() }}','0','{{ fsc.articulo.codimpuesto }}','1')">
+               {{ fsc.show_precio(fsc.articulo.preciocoste_iva()) }}
+            </a>
+         </td>
+         <td class="text-right">
+            <a href="#" onclick="{{ funcion }}('{{ fsc.articulo.referencia }}','{{ desc_b64 }}','{{ fsc.articulo.preciocoste() }}','0','{{ fsc.articulo.codimpuesto }}','1')">
+               <span class="glyphicon glyphicon-shopping-cart" title="añadir"></span>
+            </a>
+         </td>
+      </tr>
+      {% endif %}
+      <tr>
+         <td>General</td>
+         <td>-</td>
+         <td class="text-right">{{ fsc.show_precio(fsc.articulo.pvp) }}</td>
+         <td class="text-right">
+            <a href="#" onclick="{{ funcion }}('{{ fsc.articulo.referencia }}','{{ desc_b64 }}','{{ fsc.articulo.pvp }}','0','{{ fsc.articulo.codimpuesto }}','1')" title="actualizado el {{ fsc.articulo.factualizado }}">
+               {{ fsc.show_precio(fsc.articulo.pvp_iva()) }}
+            </a>
+         </td>
+         <td class="text-right">
+            <a href="#" onclick="{{ funcion }}('{{ fsc.articulo.referencia }}','{{ desc_b64 }}','{{ fsc.articulo.pvp }}','0','{{ fsc.articulo.codimpuesto }}','1')">
+               <span class="glyphicon glyphicon-shopping-cart" title="añadir"></span>
+            </a>
+         </td>
+      </tr>
+      {% for value in fsc.get_tarifas_articulo(fsc.articulo.referencia) %}
+      <tr>
+         <td>{{ value.tarifa_nombre }}</td>
+         <td>{{ value.tarifa_diff }}</td>
+         <td class="text-right">{{ fsc.show_precio(value.pvp * (100 - value.dtopor) / 100) }}</td>
+         <td class="text-right">
+            <a href="#" onclick="{{ funcion }}('{{ fsc.articulo.referencia }}','{{ desc_b64 }}','{{ value.pvp }}','{{ value.dtopor }}','{{ fsc.articulo.codimpuesto }}','1')">
+               {{ fsc.show_precio(value.pvp * (100 - value.dtopor) / 100 * (100 + value.get_iva()) / 100) }}
+            </a>
+         </td>
+         <td class="text-right">
+            <a href="#" onclick="{{ funcion }}('{{ fsc.articulo.referencia }}','{{ desc_b64 }}','{{ value.pvp }}','{{ value.dtopor }}','{{ fsc.articulo.codimpuesto }}','1')">
+               <span class="glyphicon glyphicon-shopping-cart" title="añadir"></span>
+            </a>
+         </td>
+      </tr>
+      {% endfor %}
+   </table>
+</div>
+{% if fsc.articulo.imagen_url() %}
+<div class="thumbnail">
+   <img src="{{ fsc.articulo.imagen_url() }}" alt="{{ fsc.articulo.referencia }}"/>
+</div>
+{% endif %}
+<p class="help-block" style="margin: 5px;">{{ fsc.articulo.observaciones }}</p>
+{% endif %}

@@ -1,0 +1,53 @@
+{# tpvmod — ajax spare-parts search results (migrated from tpv_recambios.html) #}
+<!--{{ fsc.query }}-->
+
+{% if fsc.get_errors() %}
+<div class="alert alert-danger">
+   <ul>{% for value in fsc.get_errors() %}<li>{{ value }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if fsc.get_messages() %}
+<div class="alert alert-info">
+   <ul>{% for value in fsc.get_messages() %}<li>{{ value }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if fsc.results %}
+<div class="table-responsive">
+   <table class="table table-responsive">
+      <thead>
+         <tr>
+            <th class="text-left">Referencia + Descripción</th>
+            <th class="text-right">PVP+{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
+            <th class="text-right">Stock Fisico</th>
+         </tr>
+      </thead>
+      {% for value in fsc.results %}
+         {% if value.sevende %}
+         {% set desc_b64 = value.descripcion|base64_encode %}
+         {% if value.stockfis <= 0 and not value.controlstock %}
+            {% set funcion = "alert('Sin stock.')" %}
+         {% elseif value.tipo %}
+            {% set funcion = "add_articulo_" ~ value.tipo ~ "('" ~ value.referencia ~ "','" ~ desc_b64 ~ "','" ~ value.pvp ~ "','" ~ value.dtopor ~ "','" ~ value.codimpuesto ~ "','" ~ value.cantidad ~ "','" ~ value.get_iva() ~ "')" %}
+         {% else %}
+            {% set funcion = "add_articulo('" ~ value.referencia ~ "','" ~ desc_b64 ~ "','" ~ value.pvp ~ "','" ~ value.dtopor ~ "','" ~ value.codimpuesto ~ "','" ~ value.cantidad ~ "','" ~ value.get_iva() ~ "')" %}
+         {% endif %}
+         <tr{% if value.bloqueado %} class="bg-danger"{% elseif value.stockfis <= 0 %} class="bg-warning"{% else %} class="bg-success"{% endif %}>
+            <td>
+               <a href="#" onclick="get_precios('{{ value.referencia }}')" title="más detalles"><span class="glyphicon glyphicon-eye-open"></span></a> &nbsp;
+               <a href="#" onclick="{{ funcion }}">{{ value.referencia }}</a> {{ value.descripcion }}
+            </td>
+            <td class="text-right">
+               <span title="actualizado el {{ value.factualizado }}">
+                  {{ fsc.show_precio(value.pvp * (100 - value.dtopor) / 100 * (100 + value.get_iva()) / 100) }}
+               </span>
+            </td>
+            <td class="text-right">{{ value.stockfis }}</td>
+         </tr>
+         {% endif %}
+      {% endfor %}
+   </table>
+</div>
+{% else %}
+<div class="alert alert-info">Sin resultados</div>
+{% endif %}

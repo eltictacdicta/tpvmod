@@ -1,0 +1,76 @@
+{#
+/**
+ * Plugin: tpvmod
+ * Extension: albaranes containing a given article.
+ * Debt-fill template (migrated from facturacion_base twin).
+ */
+#}
+{% include 'header.html.twig' %}
+
+<div class="container-fluid">
+   <div class="row">
+      <div class="col-sm-12">
+         <div class="page-header">
+            <h1>
+               <span class="glyphicon glyphicon-duplicate"></span>&nbsp;
+               <span class="text-capitalize">{% if defined('FS_ALBARANES') %}{{ constant('FS_ALBARANES') }}{% endif %}</span> con el artículo
+               <small>
+                  <a href="{{ fsc.articulo.url() }}">{{ fsc.articulo.referencia }}</a>
+               </small>
+            </h1>
+         </div>
+      </div>
+   </div>
+</div>
+
+<div class="table-responsive">
+   <table class="table table-hover">
+      <thead>
+         <tr>
+            <th class="text-left"><span class="text-capitalize">{% if defined('FS_ALBARAN') %}{{ constant('FS_ALBARAN') }}{% endif %}</span> + Cliente</th>
+            <th class="text-right">Cantidad</th>
+            <th class="text-left">Artículo</th>
+            <th class="text-right">Total+{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
+            <th class="text-right">Fecha</th>
+         </tr>
+      </thead>
+      {% for value in fsc.resultados %}
+      <tr class="clickableRow{% if value.cantidad < 1 %} warning{% endif %}" href="{{ value.url() }}">
+         <td>
+            <a href="{{ value.url() }}">{{ value.show_codigo() }}</a>
+            {{ value.show_nombrecliente() }}
+         </td>
+         <td class="text-right">{{ value.cantidad }}</td>
+         <td>
+            <a href="{{ value.articulo_url() }}" class="cancel_clickable">{{ value.referencia }}</a>
+            {{ value.descripcion }}
+         </td>
+         <td class="text-right">{{ fsc.show_precio(value.total_iva()) }}</td>
+         <td class="text-right">{{ value.show_fecha() }}</td>
+      </tr>
+      {% else %}
+      <tr class="warning">
+         <td colspan="5">Sin resultados.</td>
+      </tr>
+      {% endfor %}
+   </table>
+</div>
+
+<ul class="pager">
+   {% if fsc.offset > 0 %}
+   <li class="previous">
+      <a href="{{ fsc.url()|raw }}&amp;ref={{ fsc.articulo.referencia }}&amp;offset={{ fsc.offset - constant('FS_ITEM_LIMIT') }}">
+         <span class="glyphicon glyphicon-chevron-left"></span>&nbsp; Anteriores
+      </a>
+   </li>
+   {% endif %}
+   {% if fsc.resultados|length == constant('FS_ITEM_LIMIT') %}
+   <li class="next">
+      <a href="{{ fsc.url()|raw }}&amp;ref={{ fsc.articulo.referencia }}&amp;offset={{ fsc.offset + constant('FS_ITEM_LIMIT') }}">
+         Siguientes &nbsp;<span class="glyphicon glyphicon-chevron-right"></span>
+      </a>
+   </li>
+   {% endif %}
+</ul>
+
+{% include 'footer.html.twig' %}
