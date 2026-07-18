@@ -25,6 +25,7 @@ var irpf = 0;
 var all_impuestos = [];
 var all_series = [];
 var cliente = false;
+var nueva_venta_url = '';
 
 //para evitar que cuando le des al intro te mande el formulario
 function stopRKey(evt) {
@@ -266,29 +267,50 @@ function add_linea_libre()
    return false;
 }
 
-function aux_all_impuestos(num,codimpuesto)
+function resolve_iva_from_codimpuesto(codimpuesto, fallbackIva)
 {
    var iva = 0;
    var recargo = 0;
-   if(cliente.regimeniva != 'Exento' && !siniva)
+
+   if(cliente && cliente.regimeniva != 'Exento' && !siniva && all_impuestos && all_impuestos.length)
    {
       for(var i=0; i<all_impuestos.length; i++)
       {
+         if(!all_impuestos[i]) {
+            continue;
+         }
          if(all_impuestos[i].codimpuesto == codimpuesto)
          {
             iva = all_impuestos[i].iva;
             if(cliente.recargo)
             {
-              recargo = all_impuestos[i].recargo;
+               recargo = all_impuestos[i].recargo;
             }
             break;
          }
       }
    }
+
+   if(iva === 0 && fallbackIva !== undefined && fallbackIva !== null && fallbackIva !== '')
+   {
+      iva = parseFloat(fallbackIva) || 0;
+   }
+
+   return { iva: iva, recargo: recargo };
+}
+
+function aux_all_impuestos(num,codimpuesto)
+{
+   var imp = resolve_iva_from_codimpuesto(codimpuesto);
+   var iva = imp.iva;
+   var recargo = imp.recargo;
    
    var html = "<td><select id=\"iva_"+num+"\" class=\"form-control input-sm\" name=\"iva_"+num+"\" onchange=\"ajustar_iva('"+num+"')\">";
    for(var i=0; i<all_impuestos.length; i++)
    {
+      if(!all_impuestos[i]) {
+         continue;
+      }
       if(iva == all_impuestos[i].iva)
       {
          html += "<option value=\""+all_impuestos[i].iva+"\" selected=\"selected\">"+all_impuestos[i].descripcion+"</option>";
@@ -307,28 +329,14 @@ function aux_all_impuestos(num,codimpuesto)
    return html;
 }
 
-function add_articulo(ref,desc,pvp,dto,codimpuesto,cantidad)
+function add_articulo(ref,desc,pvp,dto,codimpuesto,cantidad,ivaArticulo)
 {
    numlineas += 1;
    $("#numlineas").val(numlineas);
    desc = Base64.decode(desc);
-   var iva = 0;
-   var recargo = 0;
-   if(cliente.regimeniva != 'Exento' && !siniva)
-   {
-      for(var i=0; i<=all_impuestos.length; i++)
-      {
-         if(all_impuestos[i].codimpuesto == codimpuesto)
-         {
-            iva = all_impuestos[i].iva;
-            if(cliente.recargo)
-            {
-              recargo = all_impuestos[i].recargo;
-            }
-            break;
-         }
-      }
-   }
+   var imp = resolve_iva_from_codimpuesto(codimpuesto, ivaArticulo);
+   var iva = imp.iva;
+   var recargo = imp.recargo;
    
    $("#lineas_albaran").prepend("<tr id=\"linea_"+numlineas+"\">\n\
          <td><input type=\"hidden\" name=\"referencia_"+numlineas+"\" value=\""+ref+"\"/>\n\
@@ -373,15 +381,12 @@ function buscar_articulos()
          dataType: 'html',
          data: $("form[name=f_buscar_articulos]").serialize(),
          success: function(datos) {
-             
-            console.log(datos);
             var re = /<!--(.*?)-->/g;
             var m = re.exec( datos );
             if( m[1] == document.f_buscar_articulos.query.value )
             {
                $("#search_results").html(datos);
             }
-             
          }
       });
    }

@@ -1,8 +1,8 @@
 {include="header"}
 
 {if="$fsc->agente"}
-   {if="$fsc->caja"}
-      {if="$fsc->caja->codagente!=$fsc->user->codagente"}
+   {if="$fsc->caja || !$fsc->caja_module_enabled"}
+      {if="$fsc->caja_module_enabled && $fsc->caja && $fsc->caja->codagente!=$fsc->user->codagente"}
       <div class="thumbnail">
          <img src='view/img/big_lock.png' fft="acceso denegado"/>
       </div>
@@ -14,19 +14,22 @@
       {else}
          {include="tpvmod2"}
       {/if}
-   {elseif="$fsc->terminal"}
+   {elseif="$fsc->caja_module_enabled && ($fsc->terminal || $fsc->auto_d_inicial)"}
    <script type="text/javascript">
       $(document).ready(function() {
          document.f_caja.d_inicial.select();
       });
    </script>
-   <form name="f_caja" action="{$fsc->url()}" method="post" class="form">
+    <form name="f_caja" action="{$fsc->url()}" method="post" class="form">
+       {$fsc->csrf_field}
+       {if="$fsc->terminal"}
       <input type="hidden" name="terminal" value="{$fsc->terminal->id}"/>
+      {/if}
       <div class="container">
          <div class="row">
             <div class="col-sm-6 col-sm-offset-3">
                <div class="page-header">
-                  <h1>Terminal {$fsc->terminal->id}</h1>
+                  <h1>{if="$fsc->terminal"}Terminal {$fsc->terminal->id}{else}Abrir caja{/if}</h1>
                </div>
                <div class="well">
                   <h2>¿Cuanto dinero hay en la caja?</h2>
@@ -67,6 +70,15 @@
          </div>
          {/loop}
       </div>
+      {if="$fsc->terminal_mode=='without_terminal'"}
+      <div class="row">
+         <div class="col-sm-12">
+            <a href="{$fsc->url()}&no_terminal=1" class="btn btn-block btn-success">
+               <span class="glyphicon glyphicon-ok"></span> &nbsp; Continuar sin terminal
+            </a>
+         </div>
+      </div>
+      {/if}
    </div>
    {/if}
 {else}

@@ -19,27 +19,22 @@
             <th class="text-left">Referencia + Descripción</th>
             <th class="text-right">PVP+{#FS_IVA#}</th>
             <th class="text-right">Stock Fisico</th>
-            <th class="text-right">PVD+{#FS_IVA#}</th>
-            <th class="text-right">Stock Virtual</th>
-            <th class="text-right">Ganancia</th>
-            <th class="text-right">Proveedor</th>
          </tr>
       </thead>
       {loop="$fsc->results"}
          {if="$value->sevende"}
          <!--
-         {$funcion="add_articulo('".$value->referencia."','".base64_encode($value->descripcion)."','".$value->pvp."','".$value->dtopor."','".$value->codimpuesto."','".$value->cantidad."')"}
+         {$funcion="add_articulo('".$value->referencia."','".base64_encode($value->descripcion)."','".$value->pvp."','".$value->dtopor."','".$value->codimpuesto."','".$value->cantidad."','".$value->get_iva()."')"}
          {if="$value->stockfis<=0 AND !$value->controlstock"}
          {$funcion="alert('Sin stock.')"}
          {elseif="$value->tipo"}
-         {$funcion="add_articulo_".$value->tipo."('".$value->referencia."','".base64_encode($value->descripcion)."','".$value->pvp."','".$value->dtopor."','".$value->codimpuesto."','".$value->cantidad."')"}
+         {$funcion="add_articulo_".$value->tipo."('".$value->referencia."','".base64_encode($value->descripcion)."','".$value->pvp."','".$value->dtopor."','".$value->codimpuesto."','".$value->cantidad."','".$value->get_iva()."')"}
          {/if}
          -->
          <tr{if="$value->bloqueado"} class="bg-danger"{elseif="$value->stockfis<=0"} class="bg-warning"{else} class="bg-success"{/if}>
             <td>
                <a href="#" onclick="get_precios('{$value->referencia}')" title="más detalles"><span class="glyphicon glyphicon-eye-open"></span></a> &nbsp;
                <a href="#" onclick="{$funcion}">{$value->referencia}</a> {$value->descripcion}
-               {$fsc->get_linea_mejor($value->referencia,$value->pvp,$value->get_iva())}
             </td>
             <td class="text-right">
                <span title="actualizado el {$value->factualizado}">
@@ -47,10 +42,6 @@
                </span>
             </td>
             <td class="text-right">{$value->stockfis}</td>
-            <td class="text-right">{$fsc->linea_mejor['pvd_iva']}</td>
-            <td class="text-right">{$fsc->linea_mejor['stock']}</td>
-            <td class="text-right">{$fsc->linea_mejor['porcentaje']}</td>
-            <td class="text-right">{$fsc->nom_proveedor($fsc->linea_mejor['proveedor'])}</td>
          </tr>
          {/if}
       {/loop}

@@ -52,7 +52,7 @@
          event.preventDefault();
          buscar_lineas();
       });
-      $("#ac_cliente").autocomplete({
+      $("#ac_cliente").devbridgeAutocomplete({
          serviceUrl: '{$fsc->url()}',
          paramName: 'buscar_cliente',
          onSelect: function (suggestion) {
@@ -90,7 +90,7 @@
             {/if}
          </div>
          <div class="btn-group">
-            <a class="btn btn-sm btn-success" href="index.php?page=nueva_venta&tipo=factura">
+            <a class="btn btn-sm btn-success" href="index.php?page=tpvmod">
                <span class="glyphicon glyphicon-plus"></span>
                <span class="hidden-xs">&nbsp; Nueva</span>
             </a>
@@ -274,7 +274,7 @@
          </tr>
       </thead>
       {loop="$fsc->resultados"}
-      <tr class="clickableRow{if="$value->vencida() OR $value->anulada"} danger{elseif="$value->pagada"} success{elseif="$value->total<=0"} warning{/if}" href="./index.php?page=tpvmod&edita=factura&id={$value->idfactura}">
+      <tr class="clickableRow {if="$value->vencida() OR $value->anulada"} danger{elseif="$value->pagada"} success{elseif="$value->total<=0"} warning{/if}" href="./index.php?page=tpvmod&edita=factura&id={$value->idfactura}">
          <td class="text-center">
             {if="$value->pagada"}
             <span class="glyphicon glyphicon-ok" title="La {#FS_FACTURA#} está pagada"></span>
@@ -294,7 +294,7 @@
             <span class="glyphicon glyphicon-paperclip" title="La {#FS_FACTURA#} tiene vinculado un asiento contable"></span>
             {/if}
          </td>
-         <td>{$value->codigo} {$value->numero2}</td>
+         <td><a href="./index.php?page=tpvmod&edita=factura&id={$value->idfactura}">{$value->codigo}</a> {$value->numero2}</td>
          <td>
             {$value->nombrecliente}
             <a href="{$fsc->url()}&codcliente={$value->codcliente}" class="cancel_clickable" title="Ver más {#FS_FACTURAS#} de {$value->nombrecliente}">[+]</a>

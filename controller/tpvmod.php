@@ -22,10 +22,8 @@ require_model('agente.php');
 require_model('albaran_cliente.php');
 require_model('pedido_cliente.php');
 require_model('presupuesto_cliente.php');
-require_model('articulo_proveedor_plus.php');
 require_model('almacen.php');
 require_model('articulo.php');
-require_model('caja.php');
 require_model('cliente.php');
 require_model('divisa.php');
 require_model('ejercicio.php');
@@ -35,7 +33,9 @@ require_model('grupo_clientes.php');
 require_model('impuesto.php');
 require_model('serie.php');
 require_model('tarifa.php');
-require_model('terminal_caja.php');
+require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
+require_once dirname(__DIR__, 3) . '/base/fs_session_manager.php';
+require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
 
 class tpvmod extends fs_controller
 {
@@ -44,6 +44,7 @@ class tpvmod extends fs_controller
    public $allow_delete;
    public $articulo;
    public $caja;
+   public $caja_module_enabled = FALSE;
    public $cliente;
    public $cliente_s;
    public $divisa;
@@ -57,10 +58,11 @@ class tpvmod extends fs_controller
    public $results;
    public $serie;
    public $terminal;
+   public $terminal_mode = 'with_terminal';
+   public $auto_d_inicial;   /// TRUE when 0 terminals + without_terminal → show d_inicial form directly (spec #17)
+   public $csrf_field;       /// HTML of the CSRF hidden input (for RainTPL forms — fs_session_manager::csrfField())
    public $ultimas_compras;
    public $ultimas_ventas;
-   public $linea_mejor=array();
-   public $lista_proveedores=array();
    public $tipo="factura";
    public $vienede;
    public $id_documento;
@@ -70,6 +72,7 @@ class tpvmod extends fs_controller
    public $clientedefault="000001";
    public $documento;
    public $nom_documento;
+   public $tpv_defaults = [];
    /*la opcion por defecto aqui la inicializo a facturas. Pero si esta activado
     * Los presupuestos la cambio a presupuestos en el controlador
     */
@@ -90,12 +93,28 @@ class tpvmod extends fs_controller
       $this->cliente_s = $this->cliente->get($this->clientedefault);//cargo el cliente por defecto que en mi caso es cliente de contado con codcliente 000001 si no tienes cliente por defecto pon false
       $this->familia = new familia();
       $this->impuesto = new impuesto();
-      $this->carga_proveedores();
       $this->results = array();
+
+      $this->caja_module_enabled = tpvmod_caja_module_enabled();
+
+      /// tpvmod-opcional: read terminal mode once per request, before any
+      /// terminal branching. Persisted via fs_settings (ini-backed config2).
+      /// Ignored when facturacion_base is inactive (direct sales mode).
+      $settings0 = new fs_settings();
+      $candidate0 = (string) $settings0->get('tpvmod_terminal_mode', 'with_terminal');
+      $this->terminal_mode = tpvmod_terminal_mode_effective($candidate0);
+
+      /// CSRF field HTML for RainTPL forms (this plugin's templates are
+      /// RainTPL, not Twig, so {csrf_field()} is rendered as literal text).
+      $this->csrf_field = \fs_session_manager::csrfField();
 
       if( isset($_REQUEST['buscar_cliente']) )
       {
          $this->buscar_cliente();
+      }
+      else if( isset($_REQUEST['datoscliente']) )
+      {
+         $this->datos_cliente();
       }
       else if($this->query != '')
       {
@@ -123,7 +142,8 @@ class tpvmod extends fs_controller
                       {
                          $this->page->title = $this->documento->codigo;
                          $this->url_listado="./index.php?page=tpvmod_albaranes";
-                         $this->url_imprimir="./index.php?page=ventas_imprimir&albaran=TRUE&id=";
+                         $urlAlbaran = tpvmod_imprimir_url('albaran');
+                         $this->url_imprimir = $urlAlbaran !== null ? $urlAlbaran : '';
                          $this->nom_documento=FS_ALBARANES;
                          /// cargamos el cliente
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -144,7 +164,8 @@ class tpvmod extends fs_controller
                       {
                          $this->page->title = $this->documento->codigo;
                          $this->url_listado="./index.php?page=tpvmod_presupuestos";
-                         $this->url_imprimir="./index.php?page=imprimir_presu_pedi&presupuesto=TRUE&id=";
+                         $urlPresu = tpvmod_imprimir_url('presupuesto');
+                         $this->url_imprimir = $urlPresu !== null ? $urlPresu : '';
                          /// cargamos el cliente
                          $this->nom_documento=FS_PRESUPUESTOS;
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -165,7 +186,8 @@ class tpvmod extends fs_controller
                       {
                          $this->page->title = $this->documento->codigo;
                          $this->url_listado="./index.php?page=tpvmod_pedidos";
-                         $this->url_imprimir="./index.php?page=imprimir_presu_pedi&pedido=TRUE&id=";
+                         $urlPedido = tpvmod_imprimir_url('pedido');
+                         $this->url_imprimir = $urlPedido !== null ? $urlPedido : '';
                          $this->nom_documento=FS_PEDIDOS;
                          /// cargamos el cliente
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -186,7 +208,8 @@ class tpvmod extends fs_controller
                       {
                          $this->page->title = $this->documento->codigo;
                          $this->url_listado="./index.php?page=tpvmod_facturas";
-                         $this->url_imprimir="./index.php?page=factura_detallada&id=";
+                         $urlFactura = tpvmod_imprimir_url('factura');
+                         $this->url_imprimir = $urlFactura !== null ? $urlFactura : './index.php?page=factura_detallada&id=';
                          $this->nom_documento=FS_FACTURAS;
                          /// cargamos el cliente
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -214,6 +237,8 @@ class tpvmod extends fs_controller
          $this->ejercicio = new ejercicio();
          $this->forma_pago = new forma_pago();
          $this->serie = new serie();
+         $this->tpv_defaults = $this->calcular_tpv_defaults();
+         $this->avisar_datos_maestros_faltantes();
 
          $this->imprimir_descripciones = FALSE;
          if( isset($_REQUEST['imprimir_desc']) )
@@ -231,6 +256,9 @@ class tpvmod extends fs_controller
          {
             $this->caja = FALSE;
             $this->terminal = FALSE;
+
+            if( $this->caja_module_enabled )
+            {
             $caja = new caja();
             $terminal0 = new terminal_caja();
             foreach($caja->all_by_agente($this->agente->codagente) as $cj)
@@ -245,7 +273,35 @@ class tpvmod extends fs_controller
 
             if(!$this->caja)
             {
-               if( isset($_POST['terminal']) )
+               /// tpvmod-opcional: no-terminal branch (mode=without_terminal only).
+               if( $this->terminal_mode === 'without_terminal'
+                  && ( isset($_GET['no_terminal'])
+                     || ( isset($_POST['d_inicial'])
+                        && count($terminal0->all()) === 0 ) ) )
+               {
+                  $this->caja = new caja();
+                  $this->caja->fs_id = 0;   /// sentinel: no terminal — see openspec/changes/terminal-opcional/proposal.md §Risks
+                  $this->caja->codagente = $this->agente->codagente;
+                  $this->caja->dinero_inicial = floatval($_POST['d_inicial'] ?? 0);
+                  $this->caja->dinero_fin     = floatval($_POST['d_inicial'] ?? 0);
+                  if( $this->caja->save() )
+                  {
+                     $this->new_message("Caja iniciada sin terminal.");
+                  }
+                  else
+                  {
+                     $this->new_error_msg("¡Imposible guardar los datos de caja!");
+                     $this->caja = FALSE;   /// fall through to pick screen
+                  }
+               }
+               /// tpvmod-opcional: spec #17 — bypass pick screen, show d_inicial form directly
+               /// when 0 terminals + without_terminal + GET (no params).
+               else if( $this->terminal_mode === 'without_terminal' && count($terminal0->all()) === 0 && $_SERVER['REQUEST_METHOD'] === 'GET' )
+               {
+                  $this->auto_d_inicial = TRUE;
+                  $this->terminal = FALSE;
+               }
+               else if( isset($_POST['terminal']) )
                {
                   $this->terminal = $terminal0->get($_POST['terminal']);
                   if(!$this->terminal)
@@ -280,9 +336,28 @@ class tpvmod extends fs_controller
                   else
                      $this->new_error_msg('Terminal no encontrado.');
                }
+               /// tpvmod-opcional: d_inicial form submit in no-terminal mode (no hidden terminal field).
+               else if( isset($_POST['d_inicial']) && $this->terminal_mode === 'without_terminal' && !isset($_POST['terminal']) )
+               {
+                  /// No-terminal caja: create with fs_id = 0 sentinel.
+                  $this->caja = new caja();
+                  $this->caja->fs_id = 0;   /// sentinel: no terminal — see openspec/changes/terminal-opcional/proposal.md §Risks
+                  $this->caja->codagente = $this->agente->codagente;
+                  $this->caja->dinero_inicial = floatval($_POST['d_inicial']);
+                  $this->caja->dinero_fin = floatval($_POST['d_inicial']);
+                  if( $this->caja->save() )
+                  {
+                     $this->new_message("Caja iniciada sin terminal con ".$this->show_precio($this->caja->dinero_inicial) );
+                  }
+                  else
+                     $this->new_error_msg("¡Imposible guardar los datos de caja!");
+               }
+            }
             }
 
-            if($this->caja)
+            $tpv_active = $this->caja || !$this->caja_module_enabled;
+
+            if($tpv_active)
             {
                /*if( isset($_POST['cliente']) )
                {
@@ -302,11 +377,11 @@ class tpvmod extends fs_controller
                   }
                }*/
 
-               if( isset($_GET['abrir_caja']) )
+               if( $this->caja_module_enabled && isset($_GET['abrir_caja']) )
                {
                   $this->abrir_caja();
                }
-               else if( isset($_GET['cerrar_caja']) )
+               else if( $this->caja_module_enabled && isset($_GET['cerrar_caja']) )
                {
                   $this->cerrar_caja();
                }
@@ -360,8 +435,9 @@ class tpvmod extends fs_controller
                   $this->borrar_ticket();
                }
             }
-            else
+            else if( $this->caja_module_enabled )
             {
+               $terminal0 = new terminal_caja();
                $this->results = $terminal0->disponibles();
             }
          }
@@ -371,16 +447,6 @@ class tpvmod extends fs_controller
                a tu usuario, y por tanto no puedes hacer tickets.');
          }
       }
-   }
-
-   private function carga_proveedores()
-   {
-       $proveedores = $this->db->select("SELECT * FROM proveedores ORDER BY nombre ASC;");
-         if($proveedores)
-         {
-            foreach($proveedores as $p)
-               $this->lista_proveedores[$p['codproveedor']] = $p['nombre'];
-         }
    }
 
    private function buscar_cliente()
@@ -398,88 +464,27 @@ class tpvmod extends fs_controller
       echo json_encode( array('query' => $_REQUEST['buscar_cliente'], 'suggestions' => $json) );
    }
 
-   public function get_pvp_iva($ref)
-  {
-      $articulo=new articulo();
-       $articulo=$articulo->get($ref);
-       if($articulo->get_iva()!==FALSE)
-        if($articulo->get_iva()===0)
-            return $articulo->pvp;
-        elseif($articulo->get_iva()>0)
-            return round($articulo->pvp+($articulo->pvp*$articulo->get_iva()/100), 3);
-      else
-        return false;
-  }
-
-
-
-  public function get_linea_mejor($ref,$pvp,$iva)
+   private function datos_cliente()
    {
-       $mejor_proveedor=new articulo_proveedor_plus();
-       $mejor_proveedor=$mejor_proveedor->getmejorarray($ref);
-       $flag="Nada";
-       if($mejor_proveedor['pvd'])
-       {
-           $flag="Entra";
-            if($iva===0)
-                $this->linea_mejor['pvp_iva']=$pvp;
-            elseif($iva>0)
-                $this->linea_mejor['pvp_iva']=round($pvp+($pvp*$iva/100),3);
-            if($iva===0)
-                $this->linea_mejor=$mejor_proveedor['pvd'];
-            elseif($iva>0)
-                $this->linea_mejor['pvd_iva']=round($mejor_proveedor['pvd']+($mejor_proveedor['pvd']*$iva/100), 3);
-            $this->linea_mejor['proveedor']=$mejor_proveedor['codproveedor'];
-            $this->linea_mejor['stock']=$mejor_proveedor['stock'];
-            $this->linea_mejor['porcentaje']= round((($this->linea_mejor['pvp_iva']-$this->linea_mejor['pvd_iva'])/$this->linea_mejor['pvd_iva']*100), 2)."%";
-       }
-       else {
-           $flag="No entra";
-           $this->linea_mejor=NULL;
-       }
+      $this->template = FALSE;
 
-       return $flag;
+      $cli = $this->cliente->get($_REQUEST['datoscliente']);
+      if(!$cli)
+      {
+         header('Content-Type: application/json');
+         echo json_encode(false);
+         return;
+      }
+
+      header('Content-Type: application/json');
+      echo json_encode(array(
+         'codcliente' => $cli->codcliente,
+         'regimeniva' => $cli->regimeniva,
+         'recargo' => $cli->recargo,
+      ));
    }
 
-   public function get_pvd_mejor($ref)
-   {
-       $mejor_proveedor=new articulo_proveedor_plus();
-       $mejor_proveedor=$mejor_proveedor->getmejor($ref);
-       if($mejor_proveedor)
-            return  $mejor_proveedor->get_pvd_iva();
-        else
-            return false;
-   }
-
-   public function porcentaje_ganancia($ref)
-   {
-       return round((($this->get_pvp_iva($ref)-$this->get_pvd_mejor($ref))/$this->get_pvd_mejor($ref)*100), 2)."%";
-   }
-
-   public function get_stock_virtual($ref)
-   {
-       $mejor_proveedor=new articulo_proveedor_plus();
-       $mejor_proveedor=$mejor_proveedor->getmejor($ref);
-       if($mejor_proveedor)
-            return  $mejor_proveedor->stock;
-        else
-            return false;
-   }
-
-   public function nom_proveedor($ref)
-   {
-       if($ref)
-       {
-           if($this->lista_proveedores[$ref])
-            return  $this->lista_proveedores[$ref];
-           else
-            return false;
-       }
-        else
-            return false;
-   }
-
-  public function busca_articulos($query='', $offset=0, $codfamilia='', $con_stock=FALSE, $codfabricante='', $bloqueados=FALSE)
+   public function busca_articulos($query='', $offset=0, $codfamilia='', $con_stock=FALSE, $codfabricante='', $bloqueados=FALSE)
    {
       $artilist = array();
       $query = $this->articulo->no_html( strtolower($query) );
@@ -699,45 +704,12 @@ class tpvmod extends fs_controller
          $continuar = FALSE;
       }
 
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $eje0 = new ejercicio();
-      $ejercicio = $eje0->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       $presupuesto = new presupuesto_cliente();
 
@@ -765,29 +737,9 @@ class tpvmod extends fs_controller
          $presupuesto->irpf = $serie->irpf;
          $presupuesto->porcomision = $this->agente->porcomision;
 
-         foreach($cliente->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $presupuesto->codcliente = $cliente->codcliente;
-               $presupuesto->cifnif = $cliente->cifnif;
-               $presupuesto->nombrecliente = $cliente->razonsocial;
-               $presupuesto->apartado = $d->apartado;
-               $presupuesto->ciudad = $d->ciudad;
-               $presupuesto->coddir = $d->id;
-               $presupuesto->codpais = $d->codpais;
-               $presupuesto->codpostal = $d->codpostal;
-               $presupuesto->direccion = $d->direccion;
-               $presupuesto->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($presupuesto, $cliente);
 
-         if( is_null($presupuesto->codcliente) )
-         {
-            $this->new_error_msg("No hay ninguna dirección asociada al cliente.");
-         }
-         else if( $presupuesto->save() )
+         if( $presupuesto->save() )
          {
             $art0 = new articulo();
             $n = floatval($_POST['numlineas']);
@@ -855,7 +807,7 @@ class tpvmod extends fs_controller
 
 					if( $presupuesto->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=presupuesto&id=".$presupuesto->idpresupuesto."'>".ucfirst(FS_PRESUPUESTO)."</a> guardado correctamente. <a href='index.php?page=imprimir_presu_pedi&presupuesto=TRUE&id=".$presupuesto->idpresupuesto."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=presupuesto&id=".$presupuesto->idpresupuesto."'>".ucfirst(FS_PRESUPUESTO)."</a> guardado correctamente.".tpvmod_imprimir_link('presupuesto', $presupuesto->idpresupuesto));
                   $this->new_change(ucfirst(FS_PRESUPUESTO).' a Cliente '.$presupuesto->codigo, $presupuesto->url(), TRUE);
 				  $this->cliente_s = $this->cliente->get($this->clientedefault);//reseteo el cliente
                }
@@ -884,45 +836,12 @@ class tpvmod extends fs_controller
          $continuar = FALSE;
       }
 
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $eje0 = new ejercicio();
-      $ejercicio = $eje0->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( ! $divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       $factura = new factura_cliente();
 
@@ -943,29 +862,9 @@ class tpvmod extends fs_controller
          $factura->irpf = $serie->irpf;
          $factura->porcomision = $this->agente->porcomision;
 
-         foreach($cliente->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $factura->codcliente = $cliente->codcliente;
-               $factura->cifnif = $cliente->cifnif;
-               $factura->nombrecliente = $cliente->razonsocial;
-               $factura->apartado = $d->apartado;
-               $factura->ciudad = $d->ciudad;
-               $factura->coddir = $d->id;
-               $factura->codpais = $d->codpais;
-               $factura->codpostal = $d->codpostal;
-               $factura->direccion = $d->direccion;
-               $factura->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($factura, $cliente);
 
-         if( is_null($factura->codcliente) )
-         {
-            $this->new_error_msg("No hay ninguna dirección asociada al cliente.");
-         }
-         else if( $factura->save() )
+         if( $factura->save() )
          {
             $art0 = new articulo();
             $n = floatval($_POST['numlineas']);
@@ -1038,7 +937,7 @@ class tpvmod extends fs_controller
 	       if( $factura->save() )
                {
                   $factura->get_lineas_iva();
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=factura&id=".$factura->idfactura."'>Factura</a> guardada correctamente. <a  href='index.php?page=factura_detallada&id=".$factura->idfactura."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=factura&id=".$factura->idfactura."'>Factura</a> guardada correctamente.".tpvmod_imprimir_link('factura', $factura->idfactura));
                   $this->new_change('Factura Cliente '.$factura->codigo, $factura->url(), TRUE);
 		  $this->cliente_s = $this->cliente->get($this->clientedefault);
                }
@@ -1068,45 +967,12 @@ class tpvmod extends fs_controller
          $continuar = FALSE;
       }
 
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $eje0 = new ejercicio();
-      $ejercicio = $eje0->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       $pedido = new pedido_cliente();
 
@@ -1134,29 +1000,9 @@ class tpvmod extends fs_controller
          $pedido->irpf = $serie->irpf;
          $pedido->porcomision = $this->agente->porcomision;
 
-         foreach($cliente->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $pedido->codcliente = $cliente->codcliente;
-               $pedido->cifnif = $cliente->cifnif;
-               $pedido->nombrecliente = $cliente->razonsocial;
-               $pedido->apartado = $d->apartado;
-               $pedido->ciudad = $d->ciudad;
-               $pedido->coddir = $d->id;
-               $pedido->codpais = $d->codpais;
-               $pedido->codpostal = $d->codpostal;
-               $pedido->direccion = $d->direccion;
-               $pedido->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($pedido, $cliente);
 
-         if( is_null($pedido->codcliente) )
-         {
-            $this->new_error_msg("No hay ninguna dirección asociada al cliente.");
-         }
-         else if( $pedido->save() )
+         if( $pedido->save() )
          {
             $art0 = new articulo();
             $n = floatval($_POST['numlineas']);
@@ -1226,7 +1072,7 @@ class tpvmod extends fs_controller
 
                 if( $pedido->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=pedido&id=".$pedido->idpedido."'>".ucfirst(FS_PEDIDO)."</a> guardado correctamente. <a href='index.php?page=imprimir_presu_pedi&pedido=TRUE&id=".$pedido->idpedido."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=pedido&id=".$pedido->idpedido."'>".ucfirst(FS_PEDIDO)."</a> guardado correctamente.".tpvmod_imprimir_link('pedido', $pedido->idpedido));
                   $this->new_change(ucfirst(FS_PEDIDO)." a Cliente ".$pedido->codigo, $pedido->url(), TRUE);
                }
                else
@@ -1253,44 +1099,12 @@ class tpvmod extends fs_controller
          $this->new_error_msg('Cliente no encontrado.');
          $continuar = FALSE;
       }
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $ejercicio = $this->ejercicio->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       if( isset($_POST['imprimir_desc']) )
       {
@@ -1339,29 +1153,9 @@ class tpvmod extends fs_controller
          $albaran->irpf = $serie->irpf;
          $albaran->porcomision = $this->agente->porcomision;
 
-         foreach($cliente->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $albaran->codcliente = $cliente->codcliente;
-               $albaran->cifnif = $cliente->cifnif;
-               $albaran->nombrecliente = $cliente->razonsocial;
-               $albaran->apartado = $d->apartado;
-               $albaran->ciudad = $d->ciudad;
-               $albaran->coddir = $d->id;
-               $albaran->codpais = $d->codpais;
-               $albaran->codpostal = $d->codpostal;
-               $albaran->direccion = $d->direccion;
-               $albaran->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($albaran, $cliente);
 
-         if( is_null($albaran->codcliente) )
-         {
-            $this->new_error_msg("No hay ninguna dirección asociada al cliente.");
-         }
-         else if( $albaran->save() )
+         if( $albaran->save() )
          {
             $n = floatval($_POST['numlineas']);
             for($i = 1; $i <= $n; $i++)
@@ -1439,18 +1233,12 @@ class tpvmod extends fs_controller
                }
                else if( $albaran->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=albaran&id=".$albaran->idalbaran."'>".FS_ALBARAN."</a> guardado correctamente. <a  href='index.php?page=ventas_imprimir&albaran=TRUE&id=".$albaran->idalbaran."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=albaran&id=".$albaran->idalbaran."'>".FS_ALBARAN."</a> guardado correctamente.".tpvmod_imprimir_link('albaran', $albaran->idalbaran));
 	          $this->cliente_s = $this->cliente->get($this->clientedefault);
 
 
                   /// actualizamos la caja
-                  $this->caja->dinero_fin += $albaran->total;
-                  $this->caja->tickets += 1;
-                  $this->caja->ip = $_SERVER['REMOTE_ADDR'];
-                  if( !$this->caja->save() )
-                  {
-                     $this->new_error_msg("¡Imposible actualizar la caja!");
-                  }
+                  $this->registrar_venta_en_caja($albaran->total);
                }
                else
                   $this->new_error_msg("¡Imposible actualizar el <a href='".$albaran->url()."'>".FS_ALBARAN."</a>!");
@@ -1476,44 +1264,12 @@ class tpvmod extends fs_controller
          $this->new_error_msg('Cliente no encontrado.');
          $continuar = FALSE;
       }
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $ejercicio = $this->ejercicio->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       if( isset($_POST['imprimir_desc']) )
       {
@@ -1556,23 +1312,7 @@ class tpvmod extends fs_controller
          $albaran->irpf = $serie->irpf;
          $albaran->porcomision = $this->agente->porcomision;
 
-         foreach($this->cliente_s->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $albaran->codcliente = $this->cliente_s->codcliente;
-               $albaran->cifnif = $this->cliente_s->cifnif;
-               $albaran->nombrecliente = $this->cliente_s->razonsocial;
-               $albaran->apartado = $d->apartado;
-               $albaran->ciudad = $d->ciudad;
-               $albaran->coddir = $d->id;
-               $albaran->codpais = $d->codpais;
-               $albaran->codpostal = $d->codpostal;
-               $albaran->direccion = $d->direccion;
-               $albaran->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($albaran, $this->cliente_s);
             if( isset($_POST['numlineas']) )
              {
                 $numlineas = intval($_POST['numlineas']);
@@ -1734,18 +1474,12 @@ class tpvmod extends fs_controller
 
                if( $albaran->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=albaran&id=".$albaran->idalbaran."'>".FS_ALBARAN."</a> guardado correctamente. <a  href='index.php?page=ventas_imprimir&albaran=TRUE&id=".$albaran->idalbaran."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=albaran&id=".$albaran->idalbaran."'>".FS_ALBARAN."</a> guardado correctamente.".tpvmod_imprimir_link('albaran', $albaran->idalbaran));
 
 
 
                   /// actualizamos la caja
-                  $this->caja->dinero_fin += $albaran->total;
-                  $this->caja->tickets += 1;
-                  $this->caja->ip = $_SERVER['REMOTE_ADDR'];
-                  if( !$this->caja->save() )
-                  {
-                     $this->new_error_msg("¡Imposible actualizar la caja!");
-                  }
+                  $this->registrar_venta_en_caja($albaran->total);
                }
                else
                   $this->new_error_msg("¡Imposible actualizar el <a href='".$albaran->url()."'>".FS_ALBARAN."</a>!");
@@ -1769,44 +1503,12 @@ class tpvmod extends fs_controller
          $this->new_error_msg('Cliente no encontrado.');
          $continuar = FALSE;
       }
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $ejercicio = $this->ejercicio->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       if( isset($_POST['imprimir_desc']) )
       {
@@ -1849,23 +1551,7 @@ class tpvmod extends fs_controller
          $pedido->irpf = $serie->irpf;
          $pedido->porcomision = $this->agente->porcomision;
 
-         foreach($this->cliente_s->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $pedido->codcliente = $this->cliente_s->codcliente;
-               $pedido->cifnif = $this->cliente_s->cifnif;
-               $pedido->nombrecliente = $this->cliente_s->razonsocial;
-               $pedido->apartado = $d->apartado;
-               $pedido->ciudad = $d->ciudad;
-               $pedido->coddir = $d->id;
-               $pedido->codpais = $d->codpais;
-               $pedido->codpostal = $d->codpostal;
-               $pedido->direccion = $d->direccion;
-               $pedido->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($pedido, $this->cliente_s);
             if( isset($_POST['numlineas']) )
              {
                 $numlineas = intval($_POST['numlineas']);
@@ -2011,18 +1697,12 @@ class tpvmod extends fs_controller
 
                if( $pedido->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=pedido&id=".$pedido->idpedido."'>".FS_PEDIDO."</a> guardado correctamente. <a  href='index.php?page=ventas_imprimir&pedido=TRUE&id=".$pedido->idpedido."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=pedido&id=".$pedido->idpedido."'>".FS_PEDIDO."</a> guardado correctamente.".tpvmod_imprimir_link('pedido', $pedido->idpedido));
 
 
 
                   /// actualizamos la caja
-                  $this->caja->dinero_fin += $pedido->total;
-                  $this->caja->tickets += 1;
-                  $this->caja->ip = $_SERVER['REMOTE_ADDR'];
-                  if( !$this->caja->save() )
-                  {
-                     $this->new_error_msg("¡Imposible actualizar la caja!");
-                  }
+                  $this->registrar_venta_en_caja($pedido->total);
                }
                else
                   $this->new_error_msg("¡Imposible actualizar el <a href='".$pedido->url()."'>".FS_ALBARAN."</a>!");
@@ -2047,44 +1727,12 @@ class tpvmod extends fs_controller
          $this->new_error_msg('Cliente no encontrado.');
          $continuar = FALSE;
       }
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $ejercicio = $this->ejercicio->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       if( isset($_POST['imprimir_desc']) )
       {
@@ -2127,23 +1775,7 @@ class tpvmod extends fs_controller
          $presupuesto->irpf = $serie->irpf;
          $presupuesto->porcomision = $this->agente->porcomision;
 
-         foreach($this->cliente_s->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $presupuesto->codcliente = $this->cliente_s->codcliente;
-               $presupuesto->cifnif = $this->cliente_s->cifnif;
-               $presupuesto->nombrecliente = $this->cliente_s->razonsocial;
-               $presupuesto->apartado = $d->apartado;
-               $presupuesto->ciudad = $d->ciudad;
-               $presupuesto->coddir = $d->id;
-               $presupuesto->codpais = $d->codpais;
-               $presupuesto->codpostal = $d->codpostal;
-               $presupuesto->direccion = $d->direccion;
-               $presupuesto->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($presupuesto, $this->cliente_s);
             if( isset($_POST['numlineas']) )
              {
                 $numlineas = intval($_POST['numlineas']);
@@ -2287,18 +1919,12 @@ class tpvmod extends fs_controller
 
                if( $presupuesto->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=presupuesto&id=".$presupuesto->idpresupuesto."'>".FS_PRESUPUESTO."</a> guardado correctamente. <a  href='index.php?page=imprimir_presu_pedi&presupuesto=TRUE&id=".$presupuesto->idpresupuesto."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=presupuesto&id=".$presupuesto->idpresupuesto."'>".FS_PRESUPUESTO."</a> guardado correctamente.".tpvmod_imprimir_link('presupuesto', $presupuesto->idpresupuesto));
 
 
 
                   /// actualizamos la caja
-                  $this->caja->dinero_fin += $presupuesto->total;
-                  $this->caja->tickets += 1;
-                  $this->caja->ip = $_SERVER['REMOTE_ADDR'];
-                  if( !$this->caja->save() )
-                  {
-                     $this->new_error_msg("¡Imposible actualizar la caja!");
-                  }
+                  $this->registrar_venta_en_caja($presupuesto->total);
                }
                else
                   $this->new_error_msg("¡Imposible actualizar el <a href='".$presupuesto->url()."'>".FS_ALBARAN."</a>!");
@@ -2323,44 +1949,12 @@ class tpvmod extends fs_controller
          $this->new_error_msg('Cliente no encontrado.');
          $continuar = FALSE;
       }
-      $almacen = $this->almacen->get($_POST['almacen']);
-      if( $almacen )
-         $this->save_codalmacen( $almacen->codalmacen );
-      else
-      {
-         $this->new_error_msg('Almacén no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $ejercicio = $this->ejercicio->get_by_fecha($_POST['fecha']);
-      if( !$ejercicio )
-      {
-         $this->new_error_msg('Ejercicio no encontrado.');
-         $continuar = FALSE;
-      }
-
-      $serie = $this->serie->get($_POST['serie']);
-      if( !$serie )
-      {
-         $this->new_error_msg('Serie no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $forma_pago = $this->forma_pago->get($_POST['forma_pago']);
-      if( $forma_pago )
-         $this->save_codpago( $forma_pago->codpago );
-      else
-      {
-         $this->new_error_msg('Forma de pago no encontrada.');
-         $continuar = FALSE;
-      }
-
-      $divisa = $this->divisa->get($_POST['divisa']);
-      if( !$divisa )
-      {
-         $this->new_error_msg('Divisa no encontrada.');
-         $continuar = FALSE;
-      }
+      $ctx = $this->cargar_contexto_documento($continuar);
+      $almacen = $ctx['almacen'];
+      $ejercicio = $ctx['ejercicio'];
+      $serie = $ctx['serie'];
+      $forma_pago = $ctx['forma_pago'];
+      $divisa = $ctx['divisa'];
 
       if( isset($_POST['imprimir_desc']) )
       {
@@ -2411,23 +2005,7 @@ class tpvmod extends fs_controller
          $factura->irpf = $serie->irpf;
          $factura->porcomision = $this->agente->porcomision;
 
-         foreach($this->cliente_s->get_direcciones() as $d)
-         {
-            if($d->domfacturacion)
-            {
-               $factura->codcliente = $this->cliente_s->codcliente;
-               $factura->cifnif = $this->cliente_s->cifnif;
-               $factura->nombrecliente = $this->cliente_s->razonsocial;
-               $factura->apartado = $d->apartado;
-               $factura->ciudad = $d->ciudad;
-               $factura->coddir = $d->id;
-               $factura->codpais = $d->codpais;
-               $factura->codpostal = $d->codpostal;
-               $factura->direccion = $d->direccion;
-               $factura->provincia = $d->provincia;
-               break;
-            }
-         }
+         tpvmod_aplicar_cliente_a_documento($factura, $this->cliente_s);
             if( isset($_POST['numlineas']) )
              {
                 $numlineas = intval($_POST['numlineas']);
@@ -2629,16 +2207,10 @@ class tpvmod extends fs_controller
                         $linea->delete();
                     }
                   }*/
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=factura&id=".$factura->idfactura."'>".FS_FACTURA."</a> guardado correctamente. <a  href='index.php?page=factura_detallada&id=".$factura->idfactura."'>Imprimir</a>");
+                  $this->new_message("<a href='./index.php?page=tpvmod&edita=factura&id=".$factura->idfactura."'>".FS_FACTURA."</a> guardado correctamente.".tpvmod_imprimir_link('factura', $factura->idfactura));
 
                   /// actualizamos la caja
-                  $this->caja->dinero_fin += $factura->total;
-                  $this->caja->tickets += 1;
-                  $this->caja->ip = $_SERVER['REMOTE_ADDR'];
-                  if( !$this->caja->save() )
-                  {
-                     $this->new_error_msg("¡Imposible actualizar la caja!");
-                  }
+                  $this->registrar_venta_en_caja($factura->total);
                }
                else
                   $this->new_error_msg("¡Imposible actualizar el <a href='".$factura->url()."'>".FS_ALBARAN."</a>!");
@@ -2759,12 +2331,7 @@ class tpvmod extends fs_controller
                $this->new_message("Ticket ".$_GET['delete']." borrado correctamente.");
 
                /// actualizamos la caja
-               $this->caja->dinero_fin -= $alb->total;
-               $this->caja->tickets -= 1;
-               if( !$this->caja->save() )
-               {
-                  $this->new_error_msg("¡Imposible actualizar la caja!");
-               }
+               $this->revertir_venta_en_caja($alb->total);
             }
             else
                $this->new_error_msg("¡Imposible borrar el ticket ".$_GET['delete']."!");
@@ -2777,26 +2344,171 @@ class tpvmod extends fs_controller
    }
 
 
-   public function tipos_a_guardar()
+   private function registrar_venta_en_caja($total)
    {
-      $tipos = array();
-
-      if( $this->user->have_access_to('ventas_presupuesto') )
+      if( !$this->caja_module_enabled || !$this->caja )
       {
-          $this->tipo="presupuesto";
-         $tipos[] = array('tipo' => 'presupuesto', 'nombre' => ucfirst(FS_PRESUPUESTO).' para cliente');
+         return;
       }
 
-      if( $this->user->have_access_to('ventas_pedido') )
-         $tipos[] = array('tipo' => 'pedido', 'nombre' => ucfirst(FS_PEDIDO).' de cliente');
+      $this->caja->dinero_fin += $total;
+      $this->caja->tickets += 1;
+      $this->caja->ip = $_SERVER['REMOTE_ADDR'];
+      if( !$this->caja->save() )
+      {
+         $this->new_error_msg("¡Imposible actualizar la caja!");
+      }
+   }
 
-      if( $this->user->have_access_to('ventas_albaran') )
-         $tipos[] = array('tipo' => 'albaran', 'nombre' => ucfirst(FS_ALBARAN).' de cliente');
+   private function revertir_venta_en_caja($total)
+   {
+      if( !$this->caja_module_enabled || !$this->caja )
+      {
+         return;
+      }
 
-      if( $this->user->have_access_to('ventas_factura') )
-         $tipos[] = array('tipo' => 'factura', 'nombre' => 'Factura de cliente');
+      $this->caja->dinero_fin -= $total;
+      $this->caja->tickets -= 1;
+      if( !$this->caja->save() )
+      {
+         $this->new_error_msg("¡Imposible actualizar la caja!");
+      }
+   }
 
-      return $tipos;
+   public function tipos_a_guardar()
+   {
+      if (!$this->user->have_access_to('tpvmod') && !$this->user->admin) {
+         return [];
+      }
+
+      return tpvmod_tipos_a_guardar();
+   }
+
+   /**
+    * Loads warehouse, series, currency, payment method and fiscal year for a new/edited document.
+    * Uses POST when present; otherwise modular defaults from business_data / catalogo_core
+    * (and terminal only when facturacion_base TPV terminal is active).
+    *
+    * @return array{almacen: almacen|false, ejercicio: ejercicio|false, serie: serie|false, forma_pago: forma_pago|false, divisa: divisa|false}
+    */
+   private function cargar_contexto_documento(bool &$continuar): array
+   {
+      $empresa0 = new empresa();
+      $empresa = $empresa0->get();
+
+      $codigos = tpvmod_resolve_documento_codigos(
+         $_POST,
+         $this->terminal ? $this->terminal : null,
+         $this->default_items,
+         $empresa ? $empresa : null
+      );
+
+      $almacen = $this->tpvmod_cargar_modelo($this->almacen, $codigos['almacen'], 'Almacén', $continuar);
+      if ($almacen) {
+         $this->save_codalmacen($almacen->codalmacen);
+      }
+
+      $fecha = $_POST['fecha'] ?? $this->today();
+      $ejercicio = $this->ejercicio->get_by_fecha($fecha);
+      if (!$ejercicio) {
+         $this->new_error_msg('Ejercicio no encontrado.');
+         $continuar = FALSE;
+      }
+
+      $serie = $this->tpvmod_cargar_modelo($this->serie, $codigos['serie'], 'Serie', $continuar);
+
+      $forma_pago = $this->tpvmod_cargar_modelo($this->forma_pago, $codigos['forma_pago'], 'Forma de pago', $continuar);
+      if ($forma_pago) {
+         $this->save_codpago($forma_pago->codpago);
+      }
+
+      $divisa = $this->tpvmod_cargar_modelo($this->divisa, $codigos['divisa'], 'Divisa', $continuar);
+
+      return [
+         'almacen' => $almacen,
+         'ejercicio' => $ejercicio,
+         'serie' => $serie,
+         'forma_pago' => $forma_pago,
+         'divisa' => $divisa,
+      ];
+   }
+
+   /**
+    * @param almacen|divisa|forma_pago|serie $model
+    * @return almacen|divisa|forma_pago|serie|false
+    */
+   private function tpvmod_cargar_modelo($model, ?string $codigo, string $label, bool &$continuar)
+   {
+      if ($codigo) {
+         $item = $model->get($codigo);
+         if ($item) {
+            return $item;
+         }
+      }
+
+      foreach ($model->all() as $item) {
+         if (method_exists($item, 'is_default') && $item->is_default()) {
+            return $item;
+         }
+      }
+
+      foreach ($model->all() as $item) {
+         return $item;
+      }
+
+      $adminUrl = match ($label) {
+         'Almacén' => 'index.php?page=admin_almacenes',
+         'Serie' => 'index.php?page=contabilidad_series',
+         'Forma de pago' => 'index.php?page=contabilidad_formas_pago',
+         'Divisa' => 'index.php?page=admin_divisas',
+         default => '',
+      };
+      $hint = $adminUrl !== ''
+         ? ' <a href="' . $adminUrl . '">Configurar ' . strtolower($label) . '</a>'
+         : '';
+
+      $this->new_error_msg($label . ' no encontrado.' . $hint);
+      $continuar = FALSE;
+
+      return FALSE;
+   }
+
+   /**
+    * @return array{almacen:?string,serie:?string,divisa:?string,forma_pago:?string}
+    */
+   private function calcular_tpv_defaults(): array
+   {
+      $empresa0 = new empresa();
+      $empresa = $empresa0->get();
+
+      return tpvmod_resolve_documento_codigos(
+         [],
+         $this->terminal ? $this->terminal : null,
+         $this->default_items,
+         $empresa ? $empresa : null
+      );
+   }
+
+   private function avisar_datos_maestros_faltantes(): void
+   {
+      if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+         return;
+      }
+
+      $gaps = tpvmod_master_data_gaps(
+         count($this->almacen->all()),
+         count($this->serie->all()),
+         count($this->forma_pago->all()),
+         count($this->divisa->all()),
+         count($this->ejercicio->all())
+      );
+
+      foreach ($gaps as $gap) {
+         $this->new_error_msg(
+            'Falta configurar ' . $gap['label'] . ' (' . $gap['plugin'] . ').'
+            . ' <a href="' . $gap['url'] . '">Ir a administración</a>'
+         );
+      }
    }
 
 }

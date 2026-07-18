@@ -60,7 +60,7 @@
          event.preventDefault();
          buscar_lineas();
       });
-      $("#ac_cliente").autocomplete({
+      $("#ac_cliente").devbridgeAutocomplete({
          serviceUrl: '{$fsc->url()}',
          paramName: 'buscar_cliente',
          onSelect: function (suggestion) {
@@ -98,7 +98,7 @@
             {/if}
          </div>
          <div class="btn-group">
-            <a class="btn btn-sm btn-success" href="index.php?page=nueva_venta&tipo=albaran">
+            <a class="btn btn-sm btn-success" href="index.php?page=tpvmod">
                <span class="glyphicon glyphicon-plus"></span>
                <span class="hidden-xs">&nbsp; Nuevo</span>
             </a>
@@ -272,7 +272,7 @@
          </tr>
       </thead>
       {loop="$fsc->resultados"}
-      <tr class='clickableRow{if="!$value->ptefactura"} success{elseif="$value->total<=0"} warning{/if}' href="./index.php?page=tpvmod&edita=albaran&id={$value->idalbaran}">
+      <tr class="clickableRow {if="!$value->ptefactura"} success{elseif="$value->total<=0"} warning{/if}" href="./index.php?page=tpvmod&edita=albaran&id={$value->idalbaran}">
          <td class="text-center">
             {if="!$value->ptefactura"}
             <span class="glyphicon glyphicon-paperclip" title="El {#FS_ALBARAN#} tiene vinculado una factura"></span>
@@ -281,7 +281,7 @@
             <span class="glyphicon glyphicon-send" title="El {#FS_ALBARAN#} fue enviado por email el {$value->femail}"></span>
             {/if}
          </td>
-         <td>{$value->codigo} {$value->numero2}</td>
+         <td><a href="./index.php?page=tpvmod&edita=albaran&id={$value->idalbaran}">{$value->codigo}</a> {$value->numero2}</td>
          <td>
             {$value->nombrecliente}
 

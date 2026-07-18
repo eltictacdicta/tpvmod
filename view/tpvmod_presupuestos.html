@@ -60,7 +60,7 @@
          event.preventDefault();
          buscar_lineas();
       });
-      $("#ac_cliente").autocomplete({
+      $("#ac_cliente").devbridgeAutocomplete({
          serviceUrl: '{$fsc->url()}',
          paramName: 'buscar_cliente',
          onSelect: function (suggestion) {
@@ -98,7 +98,7 @@
             {/if}
          </div>
          <div class="btn-group">
-            <a class="btn btn-sm btn-success" href="index.php?page=nueva_venta&tipo=presupuesto">
+            <a class="btn btn-sm btn-success" href="index.php?page=tpvmod">
                <span class="glyphicon glyphicon-plus"></span>
                <span class="hidden-xs">&nbsp; Nuevo</span>
             </a>
@@ -286,7 +286,7 @@
          </tr>
       </thead>
       {loop="$fsc->resultados"}
-      <tr class="clickableRow{if="$value->status==1"} success{elseif="$value->status==2"} danger{elseif="$value->total<=0"} warning{/if}" href="./index.php?page=tpvmod&edita=presupuesto&id={$value->idpresupuesto}">
+      <tr class="clickableRow {if="$value->status==1"} success{elseif="$value->status==2"} danger{elseif="$value->total<=0"} warning{/if}" href="./index.php?page=tpvmod&edita=presupuesto&id={$value->idpresupuesto}">
          <td class="text-center">
             {if="$value->idpedido"}
             <span class="glyphicon glyphicon-paperclip" title="El {#FS_PRESUPUESTO#} tiene vinculado un {#FS_PEDIDO#}"></span>
@@ -298,7 +298,7 @@
             <span class="glyphicon glyphicon-send" title="El {#FS_PRESUPUESTO#} fue enviado por email el {$value->femail}"></span>
             {/if}
          </td>
-         <td>{$value->codigo} {$value->numero2}</td>
+         <td><a href="./index.php?page=tpvmod&edita=presupuesto&id={$value->idpresupuesto}">{$value->codigo}</a> {$value->numero2}</td>
          <td>
             {$value->nombrecliente}
             <a href="{$fsc->url()}&codcliente={$value->codcliente}" class="cancel_clickable" title="Ver más {#FS_PRESUPUESTOS#} de {$value->nombrecliente}">[+]</a>

@@ -1,15 +1,22 @@
-<script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod.js"></script>
+<script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod.js?v={$fsc->today()}"></script>
 <script type="text/javascript">
-   fs_nf0 = {#FS_NF0#};
+   fs_nf0 = typeof FS_NF0 !== 'undefined' ? FS_NF0 : 2;
    tpv_url = '{$fsc->url()}';
+   nueva_venta_url = tpv_url;
    cliente = {function="json_encode($fsc->cliente_s)"};
    all_impuestos = {function="json_encode($fsc->impuesto->all())"};
    all_series = {function="json_encode($fsc->serie->all())"};
+   if(typeof all_impuestos === 'string') {
+      try { all_impuestos = JSON.parse(all_impuestos); } catch(e) { all_impuestos = []; }
+   }
+   if(!Array.isArray(all_impuestos)) {
+      all_impuestos = [];
+   }
    
    $(document).ready(function() {
       usar_serie();
       
-      $("#ac_cliente").autocomplete({
+      $("#ac_cliente").devbridgeAutocomplete({
          serviceUrl: tpv_url,
          paramName: 'buscar_cliente',
          onSelect: function (suggestion) {
@@ -73,9 +80,11 @@
         <h4>Nuevo documento</h4>
       </div>
       <div class="col-xs-3 text-right">
+        {if="$fsc->caja_module_enabled"}
         <a href="#" id="b_cerrar_caja" class="btn btn-sm btn-danger">
                <span class="glyphicon glyphicon-lock"></span> &nbsp; Cerrar caja
         </a>
+        {/if}
       </div>
    </div>
 </div>
