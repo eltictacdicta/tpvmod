@@ -100,6 +100,7 @@
 </div>
 
 <form id="f_tpv" name="f_tpv" action="{{ fsc.url()|raw }}" method="post" class="form">
+   {{ csrf_field() }}
    <input type="hidden" name="petition_id" value="{{ fsc.random_string() }}"/>
    <input type="hidden" id="numlineas" name="numlineas" value="0"/>
    <input type="hidden" id="tpv_total2" name="tpv_total2" value="0"/>
@@ -339,6 +340,7 @@
          </div>
          <div class="modal-body">
             <form id="f_buscar_articulos" name="f_buscar_articulos" action="{{ fsc.url()|raw }}" method="post" class="form">
+               {{ csrf_field() }}
                <input type="hidden" name="codcliente"/>
                <div class="container-fluid">
                   <div class="row">

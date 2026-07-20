@@ -219,13 +219,29 @@ function ajustar_total()
    recalcular();
 }
 
+function tpvmodCsrfToken()
+{
+   var input = document.querySelector('form[name=f_tpv] input[name="_csrf_token"]');
+   if (input && input.value) {
+      return input.value;
+   }
+   var meta = document.querySelector('meta[name="csrf-token"]');
+   return meta ? meta.getAttribute('content') : '';
+}
+
 function get_precios(ref)
 {
+   var data = "referencia4precios="+ref+"&codcliente="+document.f_tpv.cliente.value;
+   var csrf = tpvmodCsrfToken();
+   if (csrf) {
+      data += "&_csrf_token="+encodeURIComponent(csrf);
+   }
+
    $.ajax({
       type: 'POST',
       url: tpv_url,
       dataType: 'html',
-      data: "referencia4precios="+ref+"&codcliente="+document.f_tpv.cliente.value,
+      data: data,
       success: function(datos) {
          $("#search_results").html(datos);
       }
@@ -383,7 +399,7 @@ function buscar_articulos()
          success: function(datos) {
             var re = /<!--(.*?)-->/g;
             var m = re.exec( datos );
-            if( m[1] == document.f_buscar_articulos.query.value )
+            if( m && m[1] == document.f_buscar_articulos.query.value )
             {
                $("#search_results").html(datos);
             }
