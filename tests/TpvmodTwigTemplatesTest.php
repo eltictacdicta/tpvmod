@@ -56,8 +56,11 @@ class TpvmodTwigTemplatesTest extends TestCase
             'tpvmod_pedidos.html.twig',
             'tpvmod_presupuestos.html.twig',
             'parts/modalguardar.html.twig',
+            'partials/modal_clientes.html.twig',
             'ajax/tpv_recambios.html.twig',
             'ajax/tpv_cambios_precios.html.twig',
+            'ajax/tpv_clientes.html.twig',
+            'ajax/tpv_cliente_form.html.twig',
             'ajax/ventas_lineas_facturas.html.twig',
             'ajax/ventas_lineas_albaranes.html.twig',
             'ajax/ventas_lineas_pedidos.html.twig',
@@ -76,7 +79,47 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testViewsNoLongerUseClienteAutocomplete(): void
+    {
+        $views = [
+            'tpvmod2.html.twig',
+            'tpvmodedita.html.twig',
+            'tpvmod_albaranes.html.twig',
+            'tpvmod_pedidos.html.twig',
+            'tpvmod_presupuestos.html.twig',
+            'tpvmod_facturas.html.twig',
+        ];
+
+        foreach ($views as $view) {
+            $content = file_get_contents($this->viewDir . '/' . $view);
+            $this->assertIsString($content);
+            $this->assertStringNotContainsString('devbridgeAutocomplete', $content, $view);
+            $this->assertStringContainsString('tpvmod-b-buscar-cliente', $content, $view);
+        }
+    }
+
     public function testControllersDropCsrfWorkaround(): void
+    {
+        foreach (['controller/tpvmod.php', 'controller/tpvmod_albaranes.php', 'controller/tpvmod_pedidos.php'] as $relativePath) {
+            $content = file_get_contents($this->pluginDir . '/' . $relativePath);
+            $this->assertIsString($content);
+            $this->assertStringContainsString('tpvmod_cliente_ajax_dispatch', $content, $relativePath);
+            $this->assertStringNotContainsString('function buscar_cliente', $content, $relativePath);
+        }
+    }
+
+    public function testLineEditorTableIncludesDynamicTaxColumns(): void
+    {
+        foreach (['tpvmod2.html.twig', 'tpvmodedita.html.twig'] as $view) {
+            $content = file_get_contents($this->viewDir . '/' . $view);
+            $this->assertIsString($content);
+            $this->assertStringContainsString('class="text-right recargo"', $content, $view);
+            $this->assertStringContainsString('id="are"', $content, $view);
+            $this->assertStringContainsString('R.E.', $content, $view);
+        }
+    }
+
+    public function testLegacyControllersDropCsrfWorkaround(): void
     {
         foreach (['controller/tpvmod.php', 'controller/tpvmod_settings.php'] as $relativePath) {
             $content = file_get_contents($this->pluginDir . '/' . $relativePath);

@@ -30,6 +30,18 @@ function tpvmod_has_facturacion_base(?array $plugins = null): bool
 }
 
 /**
+ * Whether factura_pdf1 is among the active plugins.
+ *
+ * Fallback print path when facturacion_base is unavailable: the
+ * factura_pdf1 plugin exposes a generic factura_detallada page that
+ * prints all four document types via a &tipo= query parameter.
+ */
+function tpvmod_has_factura_pdf1(?array $plugins = null): bool
+{
+    return in_array('factura_pdf1', tpvmod_active_plugins($plugins), true);
+}
+
+/**
  * Caja / terminal / tpv_caja / ventas_imprimir features require facturacion_base.
  */
 function tpvmod_caja_module_enabled(?array $plugins = null): bool
@@ -61,21 +73,35 @@ function tpvmod_terminal_settings_available(?array $plugins = null): bool
 /**
  * Base print URL for a sales document type, or null when printing is unavailable.
  *
+ * Priority: facturacion_base (ventas_imprimir) → factura_pdf1 (factura_detallada
+ * with explicit &tipo=) → null. facturacion_base is preserved as the canonical
+ * path; factura_pdf1 is a fallback that works when the legacy plugin is gone.
+ *
  * @param 'albaran'|'pedido'|'presupuesto'|'factura' $documentType
  */
 function tpvmod_imprimir_url(string $documentType, ?array $plugins = null): ?string
 {
-    if (!tpvmod_has_facturacion_base($plugins)) {
-        return null;
+    if (tpvmod_has_facturacion_base($plugins)) {
+        return match ($documentType) {
+            'albaran' => './index.php?page=ventas_imprimir&albaran=TRUE&id=',
+            'pedido' => './index.php?page=ventas_imprimir&pedido=TRUE&id=',
+            'presupuesto' => './index.php?page=ventas_imprimir&presupuesto=TRUE&id=',
+            'factura' => './index.php?page=ventas_imprimir&factura=TRUE&id=',
+            default => null,
+        };
     }
 
-    return match ($documentType) {
-        'albaran' => './index.php?page=ventas_imprimir&albaran=TRUE&id=',
-        'pedido' => './index.php?page=ventas_imprimir&pedido=TRUE&id=',
-        'presupuesto' => './index.php?page=ventas_imprimir&presupuesto=TRUE&id=',
-        'factura' => './index.php?page=ventas_imprimir&factura=TRUE&id=',
-        default => null,
-    };
+    if (tpvmod_has_factura_pdf1($plugins)) {
+        return match ($documentType) {
+            'albaran' => './index.php?page=factura_detallada&tipo=albaran&id=',
+            'pedido' => './index.php?page=factura_detallada&tipo=pedido&id=',
+            'presupuesto' => './index.php?page=factura_detallada&tipo=presupuesto&id=',
+            'factura' => './index.php?page=factura_detallada&tipo=factura&id=',
+            default => null,
+        };
+    }
+
+    return null;
 }
 
 /**
@@ -278,4 +304,145 @@ function tpvmod_aplicar_cliente_a_documento(object $documento, object $cliente):
             return;
         }
     }
+}
+
+/**
+ * Effective D1–D4 for a client (group + per-client overrides via clientes_core).
+ *
+ * @return array{d1: float, d2: float, d3: float, d4: float}
+ */
+function tpvmod_resolve_cliente_descuentos(object $cliente): array
+{
+    if (method_exists($cliente, 'getEffectiveDiscounts')) {
+        $raw = $cliente->getEffectiveDiscounts();
+        return [
+            'd1' => (float) ($raw['d1'] ?? 0.0),
+            'd2' => (float) ($raw['d2'] ?? 0.0),
+            'd3' => (float) ($raw['d3'] ?? 0.0),
+            'd4' => (float) ($raw['d4'] ?? 0.0),
+        ];
+    }
+
+    return ['d1' => 0.0, 'd2' => 0.0, 'd3' => 0.0, 'd4' => 0.0];
+}
+
+/**
+ * Multiplier after cascading line discounts (same semantics as fbase_calc_due).
+ *
+ * @param array{d1: float, d2: float, d3: float, d4: float} $discounts
+ */
+function tpvmod_calc_due_multiplier(array $discounts): float
+{
+    $factor = 1.0;
+    foreach (['d1', 'd2', 'd3', 'd4'] as $key) {
+        $factor *= (1.0 - ((float) $discounts[$key]) / 100.0);
+    }
+
+    return $factor;
+}
+
+/**
+ * @param array{d1: float, d2: float, d3: float, d4: float} $discounts
+ */
+function tpvmod_calc_pvptotal(float $cantidad, float $pvpunitario, array $discounts): float
+{
+    return $cantidad * $pvpunitario * tpvmod_calc_due_multiplier($discounts);
+}
+
+/**
+ * PVP unitario a partir de neto de línea (inversa de tpvmod_calc_pvptotal).
+ *
+ * @param array{d1: float, d2: float, d3: float, d4: float} $discounts
+ */
+function tpvmod_calc_pvp_from_neto(float $neto, float $cantidad, array $discounts): float
+{
+    $due = tpvmod_calc_due_multiplier($discounts);
+    if ($cantidad == 0.0 || $due == 0.0) {
+        return 0.0;
+    }
+
+    return $neto / ($cantidad * $due);
+}
+
+/**
+ * Total de línea con impuestos: neto * (1 + (iva - irpf + recargo) / 100).
+ */
+function tpvmod_calc_line_total(float $neto, float $iva, float $irpf, float $recargo): float
+{
+    return $neto + ($neto * ($iva - $irpf + $recargo) / 100.0);
+}
+
+/**
+ * Neto de línea a partir del total con impuestos (inversa de tpvmod_calc_line_total).
+ */
+function tpvmod_calc_neto_from_total(float $total, float $iva, float $irpf, float $recargo): float
+{
+    $taxFactor = 100.0 + $iva - $irpf + $recargo;
+
+    return $taxFactor != 0.0 ? (100.0 * $total / $taxFactor) : 0.0;
+}
+
+/**
+ * orden en BD: ORDER BY orden DESC (la primera línea visible lleva el valor más alto).
+ */
+function tpvmod_line_orden_from_position(int $positionOneBased, int $totalLines): int
+{
+    if ($totalLines <= 0 || $positionOneBased <= 0) {
+        return 0;
+    }
+
+    return $totalLines - $positionOneBased + 1;
+}
+
+function tpvmod_apply_line_orden(object $linea, int $positionOneBased, int $totalLines): void
+{
+    $linea->orden = tpvmod_line_orden_from_position($positionOneBased, $totalLines);
+}
+
+/**
+ * @param array{d1: float, d2: float, d3: float, d4: float} $discounts
+ */
+function tpvmod_apply_descuentos_a_linea(object $linea, array $discounts): void
+{
+    $linea->dtopor = (float) $discounts['d1'];
+    $linea->dtopor2 = (float) $discounts['d2'];
+    $linea->dtopor3 = (float) $discounts['d3'];
+    $linea->dtopor4 = (float) $discounts['d4'];
+}
+
+/**
+ * Apply client effective discounts and derived amounts to a sales line.
+ */
+function tpvmod_populate_linea_descuentos(
+    object $linea,
+    object $cliente,
+    float $cantidad,
+    float $pvpunitario
+): void {
+    $discounts = tpvmod_resolve_cliente_descuentos($cliente);
+    tpvmod_apply_descuentos_a_linea($linea, $discounts);
+    $linea->cantidad = $cantidad;
+    $linea->pvpunitario = $pvpunitario;
+    $linea->pvpsindto = $cantidad * $pvpunitario;
+    $linea->pvptotal = tpvmod_calc_pvptotal($cantidad, $pvpunitario, $discounts);
+}
+
+/**
+ * JSON payload for the datoscliente AJAX endpoint.
+ *
+ * @return array<string, mixed>
+ */
+function tpvmod_datos_cliente_payload(object $cliente): array
+{
+    $discounts = tpvmod_resolve_cliente_descuentos($cliente);
+
+    return [
+        'codcliente' => $cliente->codcliente,
+        'regimeniva' => $cliente->regimeniva,
+        'recargo' => (bool) $cliente->recargo,
+        'd1' => $discounts['d1'],
+        'd2' => $discounts['d2'],
+        'd3' => $discounts['d3'],
+        'd4' => $discounts['d4'],
+    ];
 }

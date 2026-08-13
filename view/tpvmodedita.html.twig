@@ -15,7 +15,7 @@
    numlineas = {{ fsc.documento.get_lineas()|length }};
    tpv_url = '{{ fsc.url()|raw }}';
    nueva_venta_url = tpv_url;
-   cliente = {{ json_encode(fsc.cliente_s)|raw }};
+   cliente = {{ json_encode(fsc.cliente_tpv_json())|raw }};
    all_impuestos = {{ json_encode(fsc.impuesto.all())|raw }};
    all_series = {{ json_encode(fsc.serie.all())|raw }};
    if(typeof all_impuestos === 'string') {
@@ -30,21 +30,6 @@
       $("#numlineas").val(numlineas);
       usar_serie();
       recalcular();
-
-      $("#ac_cliente").devbridgeAutocomplete({
-         serviceUrl: tpv_url,
-         paramName: 'buscar_cliente',
-         onSelect: function (suggestion) {
-            if(suggestion)
-            {
-               if(document.f_tpv.cliente.value != suggestion.data && suggestion.data != '')
-               {
-                  document.f_tpv.cliente.value = suggestion.data;
-                  usar_cliente(suggestion.data);
-               }
-            }
-         }
-      });
    });
 </script>
 
@@ -137,13 +122,16 @@
             <div class="form-group">
                Cliente:
                <div class="input-group">
-                  <input class="form-control input-sm" type="text" name="ac_cliente" id="ac_cliente" value="{{ fsc.cliente_s.nombre }} Tlf:{{ fsc.cliente_s.telefono1 }} Tlf2:{{ fsc.cliente_s.telefono2 }}" placeholder="Buscar" autocomplete="off"/>
+                  <input class="form-control input-sm" type="text" name="ac_cliente" id="ac_cliente" value="{{ fsc.cliente_s.nombre }} Tlf:{{ fsc.cliente_s.telefono1 }} Tlf2:{{ fsc.cliente_s.telefono2 }}" placeholder="Buscar" autocomplete="off" readonly="readonly"/>
                   <span class="input-group-btn">
-                     <button class="btn btn-default btn-sm" type="button" onclick="document.f_tpv.ac_cliente.value=''; document.f_tpv.ac_cliente.focus();">
+                     <button class="btn btn-default btn-sm tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
                         <span class="glyphicon glyphicon-edit"></span>
                      </button>
-                     <button class="btn btn-default btn-sm" type="button" onclick="document.f_tpv.ac_cliente.value=''; document.f_tpv.ac_cliente.focus();">
+                     <button class="btn btn-default btn-sm tpvmod-b-nuevo-cliente" type="button" title="Nuevo cliente">
                         <span class="glyphicon glyphicon-plus"></span>
+                     </button>
+                     <button class="btn btn-default btn-sm tpvmod-b-editar-cliente" type="button" title="Editar cliente">
+                        <span class="glyphicon glyphicon-pencil"></span>
                      </button>
                   </span>
                </div>
@@ -192,13 +180,15 @@
             <table class="table table-condensed">
                <thead>
                    <th style="width:60px">Ref</th>
-                        <th class="text-left">Artículo</th>
-                        <th class="text-right" style="width:50px">Cantidad</th>
-                        <th style="width:30px"></th>
-                        <th class="text-right" style="width:80px">Precio</th>
-                        <th class="text-right" style="width:80px">Neto</th>
-                        <th class="text-right" style="width:90px">{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
-                    <th class="text-right" style="width:90px">Total</th>
+                   <th class="text-left">Artículo</th>
+                   <th class="text-right" style="width:50px">Cantidad</th>
+                   <th style="width:60px" title="Arrastrar o eliminar"></th>
+                   <th class="text-right" style="width:80px">Precio</th>
+                   <th class="text-right" style="width:80px">Neto</th>
+                   <th class="text-right" style="width:90px">{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
+                   <th class="text-right recargo" style="width:70px; display:none;">R.E.</th>
+                   <th class="text-right irpf" style="width:70px; display:none;">{% if defined('FS_IRPF') %}{{ constant('FS_IRPF') }}{% else %}IRPF{% endif %}</th>
+                   <th class="text-right" style="width:90px">Total</th>
                </thead>
                <tbody id="lineas_albaran">
 
@@ -207,9 +197,6 @@
                         <td>
                             <input class="input-sm" type="hidden" name="idlinea_{{ loop.index }}" value="{{ linea.idlinea }}"/>
                            <input class="input-sm" type="hidden" name="referencia_{{ loop.index }}" value="{{ linea.referencia }}"/>
-                           <input class="input-sm" type="hidden" id="iva_1" name="iva_{{ loop.index }}" value="21">
-                           <input class="input-sm" type="hidden" id="recargo_1" name="recargo_{{ loop.index }}" value="0">
-                           <input class="input-sm" type="hidden" id="irpf_1" name="irpf_{{ loop.index }}" value="0">
                            <div class="form-control input-sm">
                               <a target="_blank" href="{{ linea.articulo_url()|raw }}">{{ linea.referencia }}</a>
                            </div>
@@ -217,19 +204,23 @@
                         <td><textarea class="form-control input-sm" name="desc_{{ loop.index }}" rows="1" onclick="this.select()">{{ linea.descripcion }}</textarea></td>
                         <td>
                            <input type="number" step="any" id="cantidad_{{ loop.index }}" class="form-control text-right input-sm" name="cantidad_{{ loop.index }}"
-                                  value="{{ linea.cantidad }}" onchange="recalcular()" onkeyup="recalcular()" autocomplete="off" value="1"/>
+                                  value="{{ linea.cantidad }}" onchange="recalcular()" onkeyup="recalcular()" autocomplete="off"/>
                         </td>
-                        <td>
-                           <button class="btn btn-sm btn-danger" type="button" onclick="$('#linea_{{ loop.index }}').remove();recalcular();">
+                        <td class="tpvmod-line-actions text-nowrap">
+                           <span class="tpvmod-line-handle btn btn-xs btn-default" title="Arrastrar para reordenar">
+                              <i class="fa fa-arrows-v"></i>
+                           </span>
+                           <button class="btn btn-xs btn-danger" type="button" onclick="return tpvmod_eliminar_linea('{{ loop.index }}');">
                               <span class="glyphicon glyphicon-trash"></span>
                            </button>
                         </td>
                         <td>
                            <input type="text" class="form-control text-right input-sm" id="pvp_{{ loop.index }}" name="pvp_{{ loop.index }}" value="{{ linea.pvpunitario }}"
-                                  onkeyup="recalcular()" onclick="this.select()" autocomplete="off"/>
+                                  onkeyup="recalcular()" onchange="recalcular()" onclick="this.select()" autocomplete="off"/>
                         </td>
                         <td>
-                           <input type="text" class="form-control text-right input-sm" id="neto_{{ loop.index }}" name="neto_{{ loop.index }}" readonly="">
+                           <input type="text" class="form-control text-right input-sm" id="neto_{{ loop.index }}" name="neto_{{ loop.index }}"
+                                  onchange="ajustar_neto('{{ loop.index }}')" onkeyup="ajustar_neto('{{ loop.index }}')" onclick="this.select()" autocomplete="off"/>
                         </td>
                         <td>
                            <select class="form-control input-sm" id="iva_{{ loop.index }}" name="iva_{{ loop.index }}" onchange="ajustar_iva('{{ loop.index }}')">
@@ -241,7 +232,11 @@
                               {% endif %}
                            {% endfor %}
                            </select>
+                           <input type="hidden" id="recargo_{{ loop.index }}" name="recargo_{{ loop.index }}" value="{{ linea.recargo }}"/>
+                           <input type="hidden" id="irpf_{{ loop.index }}" name="irpf_{{ loop.index }}" value="{{ linea.irpf }}"/>
                         </td>
+                        <td class="text-right recargo"><div class="form-control input-sm">{{ linea.recargo }}</div></td>
+                        <td class="text-right irpf"><div class="form-control input-sm">{{ linea.irpf }}</div></td>
                         <td><input type="text" class="form-control text-right input-sm" id="total_{{ loop.index }}" name="total_{{ loop.index }}" onchange="ajustar_total()" onclick="this.select()" autocomplete="off"></td>
                      </tr>
                      {% endfor %}
@@ -255,10 +250,15 @@
                      <td colspan="3" class="text-right">Totales:</td>
                      <td><div id="aneto" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                      <td><div id="aiva" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
+                     <td class="recargo" style="display:none;"><div id="are" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
+                     <td class="irpf" style="display:none;"><div id="airpf" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                      <td><div id="atotal" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                   </tr>
                </tbody>
             </table>
+            <p class="help-block hidden-xs">
+               <i class="fa fa-arrows-v"></i> Arrastra el icono de flechas para reordenar las líneas.
+            </p>
          </div>
       </div>
       <div class="tab-pane" id="tab_opciones">
@@ -421,4 +421,5 @@
       </div>
    </div>
 </div>
+{% include 'partials/modal_clientes.html.twig' %}
 {% include 'footer.html.twig' %}

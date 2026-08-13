@@ -1,7 +1,7 @@
 {#
 /**
  * Plugin: tpvmod
- * Partial — modal de "Guardar ticket" usado por tpvmodedita.
+ * Partial — modal de "Guardar documento" usado por tpvmodedita.
  * Esta parcial NO incluye csrf_field porque ya está en el <form> padre.
  * Twig nativo (no depende de legacy_support).
  * Migrado desde view/parts/modalguardar.html el 2026-07-18.
@@ -14,7 +14,7 @@
                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                   <span aria-hidden="true">&times;</span>
                </button>
-               <h4 class="modal-title" id="myModalLabel">Guardar ticket</h4>
+               <h4 class="modal-title" id="myModalLabel">Guardar documento</h4>
             </div>
             <div class="modal-body">
                <div class="form-group col-md-6">
@@ -41,7 +41,7 @@
 
                <div class="radio col-md-6">
                   <label>
-                     <input type="radio" name="tipo" value="guardar_{{ tipo.tipo }}" checked="checked" />
+                     <input type="radio" name="tipo" value="guardar_{{ tipo.tipo }}" />
                      Guardar {{ tipo.tipo }}
                   </label>
                </div>
@@ -73,7 +73,7 @@
             </div>
             <div class="modal-footer">
                <div class="form-group col-md-12">
-               <button class="btn btn-sm btn-primary" type="submit" onclick="this.disabled=true;$('#tpv_total').prop('disabled',false);this.form.submit();">
+               <button class="btn btn-sm btn-primary" type="submit" onclick="return tpvmod_submit_guardar(this);">
                   <span class="glyphicon glyphicon-floppy-disk"></span> &nbsp; Guardar
                </button>
                </div>

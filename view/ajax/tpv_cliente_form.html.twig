@@ -1,0 +1,267 @@
+{# tpvmod — client create/edit form loaded inside modal (tabs) #}
+{% set cliente = fsc.tpv_cliente %}
+{% set es_nuevo = fsc.tpv_cliente_nuevo %}
+
+{% if fsc.get_errors() %}
+<div class="alert alert-danger">
+   <ul>{% for value in fsc.get_errors() %}<li>{{ value }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form id="f_cliente_tpv" name="f_cliente_tpv" class="form" onsubmit="return false;">
+   {{ csrf_field() }}
+   <input type="hidden" name="save_cliente_tpv" value="1"/>
+   {% if not es_nuevo %}
+   <input type="hidden" name="codcliente" value="{{ cliente.codcliente }}"/>
+   {% endif %}
+
+   <ul class="nav nav-tabs" role="tablist">
+      <li class="active"><a href="#tpv_cli_datos" role="tab" data-toggle="tab">Datos</a></li>
+      <li><a href="#tpv_cli_descuentos" role="tab" data-toggle="tab">Descuentos</a></li>
+      <li><a href="#tpv_cli_direcciones" role="tab" data-toggle="tab">Direcciones</a></li>
+   </ul>
+
+   <div class="tab-content" style="padding-top: 15px;">
+      <div class="tab-pane active" id="tpv_cli_datos">
+         <div class="row">
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>Código</label>
+                  <input type="text" class="form-control input-sm" value="{{ es_nuevo ? '(auto)' : cliente.codcliente }}" readonly/>
+               </div>
+            </div>
+            <div class="col-sm-5">
+               <div class="form-group">
+                  <label>Nombre *</label>
+                  <input type="text" name="nombre" class="form-control input-sm" value="{{ cliente.nombre }}" maxlength="100" required/>
+               </div>
+            </div>
+            <div class="col-sm-5">
+               <div class="form-group">
+                  <label>Razón social</label>
+                  <input type="text" name="razonsocial" class="form-control input-sm" value="{{ cliente.razonsocial }}" maxlength="100"/>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-sm-3">
+               <div class="form-group">
+                  <label>CIF/NIF</label>
+                  <input type="text" name="cifnif" class="form-control input-sm" value="{{ cliente.cifnif }}" maxlength="30"/>
+               </div>
+            </div>
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>Tipo ID fiscal</label>
+                  <input type="text" name="tipoidfiscal" class="form-control input-sm" value="{{ cliente.tipoidfiscal }}" maxlength="25"/>
+               </div>
+            </div>
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>Persona</label>
+                  <select name="personafisica" class="form-control input-sm">
+                     <option value="1"{% if cliente.personafisica %} selected{% endif %}>Física</option>
+                     <option value="0"{% if not cliente.personafisica %} selected{% endif %}>Jurídica</option>
+                  </select>
+               </div>
+            </div>
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>Teléfono</label>
+                  <input type="text" name="telefono1" class="form-control input-sm" value="{{ cliente.telefono1 }}" maxlength="30"/>
+               </div>
+            </div>
+            <div class="col-sm-3">
+               <div class="form-group">
+                  <label>Teléfono 2</label>
+                  <input type="text" name="telefono2" class="form-control input-sm" value="{{ cliente.telefono2 }}" maxlength="30"/>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-sm-3">
+               <div class="form-group">
+                  <label>Email</label>
+                  <input type="email" name="email" class="form-control input-sm" value="{{ cliente.email }}" maxlength="100"/>
+               </div>
+            </div>
+            <div class="col-sm-3">
+               <div class="form-group">
+                  <label>Web</label>
+                  <input type="url" name="web" class="form-control input-sm" value="{{ cliente.web }}" maxlength="250"/>
+               </div>
+            </div>
+            <div class="col-sm-3">
+               <div class="form-group">
+                  <label>Grupo</label>
+                  <select name="codgrupo" class="form-control input-sm">
+                     <option value="">Sin grupo</option>
+                     {% for g in fsc.tpv_grupos %}
+                     <option value="{{ g.codgrupo }}"{% if cliente.codgrupo == g.codgrupo %} selected{% endif %}>{{ g.nombre }}</option>
+                     {% endfor %}
+                  </select>
+               </div>
+            </div>
+            <div class="col-sm-3">
+               <div class="form-group">
+                  <label>Régimen IVA</label>
+                  <select name="regimeniva" class="form-control input-sm">
+                     {% for regimen in fsc.tpv_regimenes_iva %}
+                     <option value="{{ regimen }}"{% if cliente.regimeniva == regimen %} selected{% endif %}>{{ regimen }}</option>
+                     {% endfor %}
+                  </select>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>Recargo eq.</label>
+                  <select name="recargo" class="form-control input-sm">
+                     <option value="0"{% if not cliente.recargo %} selected{% endif %}>No</option>
+                     <option value="1"{% if cliente.recargo %} selected{% endif %}>Sí</option>
+                  </select>
+               </div>
+            </div>
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>Días pago</label>
+                  <input type="text" name="diaspago" class="form-control input-sm" value="{{ cliente.diaspago }}" placeholder="1,15,31"/>
+               </div>
+            </div>
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>De baja</label>
+                  <select name="debaja" class="form-control input-sm">
+                     <option value="0"{% if not cliente.debaja %} selected{% endif %}>No</option>
+                     <option value="1"{% if cliente.debaja %} selected{% endif %}>Sí</option>
+                  </select>
+               </div>
+            </div>
+            <div class="col-sm-6">
+               <div class="form-group">
+                  <label>Observaciones</label>
+                  <textarea name="observaciones" class="form-control input-sm" rows="2">{{ cliente.observaciones }}</textarea>
+               </div>
+            </div>
+         </div>
+      </div>
+
+      <div class="tab-pane" id="tpv_cli_descuentos">
+         <div class="row">
+            <div class="col-sm-4">
+               <div class="form-group">
+                  <label>Grupo descuentos</label>
+                  <select name="codgrupo_descuento" class="form-control input-sm">
+                     <option value="">Sin grupo</option>
+                     {% for gd in fsc.tpv_grupos_descuentos %}
+                     <option value="{{ gd.codgrupo_descuento }}"{% if cliente.codgrupo_descuento == gd.codgrupo_descuento %} selected{% endif %}>{{ gd.nombre }}</option>
+                     {% endfor %}
+                  </select>
+               </div>
+            </div>
+            {% for i in 1..4 %}
+            <div class="col-sm-2">
+               <div class="form-group">
+                  <label>D{{ i }} (%)</label>
+                  <input type="number" name="d{{ i }}" class="form-control input-sm" value="{{ attribute(cliente, 'd' ~ i) ?? 0 }}" step="0.01" min="0" max="100"/>
+               </div>
+            </div>
+            {% endfor %}
+         </div>
+      </div>
+
+      <div class="tab-pane" id="tpv_cli_direcciones">
+         {% if es_nuevo %}
+         <div class="alert alert-info">Guarda el cliente primero para añadir direcciones.</div>
+         {% else %}
+         <div class="table-responsive">
+            <table class="table table-condensed table-hover" id="tpv_tabla_direcciones">
+               <thead>
+                  <tr>
+                     <th>Descripción</th>
+                     <th>Dirección</th>
+                     <th>Ciudad</th>
+                     <th class="text-center">Envío</th>
+                     <th class="text-center">Fact.</th>
+                     <th></th>
+                  </tr>
+               </thead>
+               <tbody>
+                  {% for dir in fsc.tpv_direcciones %}
+                  <tr>
+                     <td>{{ dir.descripcion ?: '-' }}</td>
+                     <td>{{ dir.direccion }}</td>
+                     <td>{{ dir.ciudad ?: '-' }}</td>
+                     <td class="text-center">{% if dir.domenvio %}<span class="glyphicon glyphicon-ok text-success"></span>{% endif %}</td>
+                     <td class="text-center">{% if dir.domfacturacion %}<span class="glyphicon glyphicon-ok text-success"></span>{% endif %}</td>
+                     <td class="text-right">
+                        <button type="button" class="btn btn-xs btn-default" onclick="tpvmodEditarDireccion({{ dir.id }})">
+                           <span class="glyphicon glyphicon-edit"></span>
+                        </button>
+                        <button type="button" class="btn btn-xs btn-danger" onclick="tpvmodEliminarDireccion({{ dir.id }})">
+                           <span class="glyphicon glyphicon-trash"></span>
+                        </button>
+                     </td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="6" class="text-muted text-center">Sin direcciones</td></tr>
+                  {% endfor %}
+               </tbody>
+            </table>
+         </div>
+
+         <h5>Nueva / editar dirección</h5>
+         <div id="f_direccion_tpv" class="form">
+            <input type="hidden" name="save_direccion_tpv" value="1"/>
+            <input type="hidden" name="codcliente" value="{{ cliente.codcliente }}"/>
+            <input type="hidden" name="dir_id" id="tpv_dir_id" value=""/>
+            <div class="row">
+               <div class="col-sm-3">
+                  <input type="text" name="descripcion" class="form-control input-sm" placeholder="Descripción" value="Principal"/>
+               </div>
+               <div class="col-sm-5">
+                  <input type="text" name="direccion" class="form-control input-sm" placeholder="Dirección" required/>
+               </div>
+               <div class="col-sm-2">
+                  <input type="text" name="codpostal" class="form-control input-sm" placeholder="C.P."/>
+               </div>
+               <div class="col-sm-2">
+                  <input type="text" name="codpais" class="form-control input-sm" placeholder="País" value="ESP"/>
+               </div>
+            </div>
+            <div class="row" style="margin-top: 8px;">
+               <div class="col-sm-4">
+                  <input type="text" name="ciudad" class="form-control input-sm" placeholder="Ciudad"/>
+               </div>
+               <div class="col-sm-4">
+                  <input type="text" name="provincia" class="form-control input-sm" placeholder="Provincia"/>
+               </div>
+               <div class="col-sm-2">
+                  <label class="checkbox-inline"><input type="checkbox" name="domenvio" value="1"/> Envío</label>
+               </div>
+               <div class="col-sm-2">
+                  <label class="checkbox-inline"><input type="checkbox" name="domfacturacion" value="1" checked="checked"/> Fact.</label>
+               </div>
+            </div>
+            <div class="text-right" style="margin-top: 8px;">
+               <button type="button" class="btn btn-sm btn-primary" onclick="tpvmodGuardarDireccion()">
+                  <span class="glyphicon glyphicon-floppy-disk"></span> Guardar dirección
+               </button>
+            </div>
+         </div>
+         {% endif %}
+      </div>
+   </div>
+
+   <div class="text-right" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+      <button type="button" class="btn btn-sm btn-default" data-dismiss="modal">Cancelar</button>
+      <button type="button" class="btn btn-sm btn-primary" onclick="tpvmodGuardarCliente()">
+         <span class="glyphicon glyphicon-floppy-disk"></span> Guardar cliente
+      </button>
+   </div>
+</form>
+
+<script type="text/javascript">
+   window.tpvDireccionesData = {{ fsc.tpv_direcciones|default([])|json_encode|raw }};
+</script>

@@ -99,6 +99,77 @@ class TpvmodModulesTest extends TestCase
         $this->assertStringContainsString('id=99', $link);
     }
 
+    public function testHasFacturaPdf1WhenPluginActive(): void
+    {
+        $this->assertTrue(tpvmod_has_factura_pdf1(['factura_pdf1', 'tpvmod']));
+    }
+
+    public function testHasFacturaPdf1WhenPluginAbsent(): void
+    {
+        $this->assertFalse(tpvmod_has_factura_pdf1(['tpvmod', 'clientes_facturacion']));
+    }
+
+    public function testImprimirUrlReturnsNullWithEmptyPluginList(): void
+    {
+        $this->assertNull(tpvmod_imprimir_url('albaran', []));
+        $this->assertNull(tpvmod_imprimir_url('factura', []));
+    }
+
+    public function testImprimirUrlReturnsFacturaDetalladaWithFacturaPdf1ForAlbaran(): void
+    {
+        $this->assertSame(
+            './index.php?page=factura_detallada&tipo=albaran&id=',
+            tpvmod_imprimir_url('albaran', ['factura_pdf1'])
+        );
+    }
+
+    public function testImprimirUrlReturnsFacturaDetalladaWithFacturaPdf1ForPresupuesto(): void
+    {
+        $this->assertSame(
+            './index.php?page=factura_detallada&tipo=presupuesto&id=',
+            tpvmod_imprimir_url('presupuesto', ['factura_pdf1'])
+        );
+    }
+
+    public function testImprimirUrlReturnsFacturaDetalladaWithFacturaPdf1ForPedido(): void
+    {
+        $this->assertSame(
+            './index.php?page=factura_detallada&tipo=pedido&id=',
+            tpvmod_imprimir_url('pedido', ['factura_pdf1'])
+        );
+    }
+
+    public function testImprimirUrlReturnsFacturaDetalladaWithFacturaPdf1ForFactura(): void
+    {
+        $this->assertSame(
+            './index.php?page=factura_detallada&tipo=factura&id=',
+            tpvmod_imprimir_url('factura', ['factura_pdf1'])
+        );
+    }
+
+    public function testImprimirUrlPrefersFacturacionBaseOverFacturaPdf1(): void
+    {
+        $plugins = ['facturacion_base', 'factura_pdf1'];
+
+        $this->assertSame(
+            './index.php?page=ventas_imprimir&albaran=TRUE&id=',
+            tpvmod_imprimir_url('albaran', $plugins)
+        );
+        $this->assertSame(
+            './index.php?page=ventas_imprimir&factura=TRUE&id=',
+            tpvmod_imprimir_url('factura', $plugins)
+        );
+    }
+
+    public function testImprimirLinkRendersFacturaDetalladaWithFacturaPdf1(): void
+    {
+        $link = tpvmod_imprimir_link('albaran', 123, ['factura_pdf1']);
+
+        $this->assertStringContainsString('factura_detallada', $link);
+        $this->assertStringContainsString('tipo=albaran', $link);
+        $this->assertStringContainsString('id=123', $link);
+    }
+
     public function testTiposAGuardarEmptyWithoutClientesFacturacion(): void
     {
         $this->assertSame([], tpvmod_tipos_a_guardar(['tpvmod', 'facturacion_base']));

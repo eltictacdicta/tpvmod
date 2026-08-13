@@ -13,7 +13,7 @@
    fs_nf0 = typeof FS_NF0 !== 'undefined' ? FS_NF0 : 2;
    tpv_url = '{{ fsc.url()|raw }}';
    nueva_venta_url = tpv_url;
-   cliente = {{ json_encode(fsc.cliente_s)|raw }};
+   cliente = {{ json_encode(fsc.cliente_tpv_json())|raw }};
    all_impuestos = {{ json_encode(fsc.impuesto.all())|raw }};
    all_series = {{ json_encode(fsc.serie.all())|raw }};
    if(typeof all_impuestos === 'string') {
@@ -25,21 +25,7 @@
 
    $(document).ready(function() {
       usar_serie();
-
-      $("#ac_cliente").devbridgeAutocomplete({
-         serviceUrl: tpv_url,
-         paramName: 'buscar_cliente',
-         onSelect: function (suggestion) {
-            if(suggestion)
-            {
-               if(document.f_tpv.cliente.value != suggestion.data && suggestion.data != '')
-               {
-                  document.f_tpv.cliente.value = suggestion.data;
-                  usar_cliente(suggestion.data);
-               }
-            }
-         }
-      });
+      recalcular();
    });
 </script>
 
@@ -111,15 +97,17 @@
             <div class="form-group">
                Cliente:
                <div class="input-group">
-                  <input class="form-control input-sm" type="text" name="ac_cliente" id="ac_cliente" value="{{ fsc.cliente_s.nombre }} Tlf:{{ fsc.cliente_s.telefono1 }} Tlf2:{{ fsc.cliente_s.telefono2 }}" placeholder="Buscar" autocomplete="off"/>
+                  <input class="form-control input-sm" type="text" name="ac_cliente" id="ac_cliente" value="{{ fsc.cliente_s.nombre }} Tlf:{{ fsc.cliente_s.telefono1 }} Tlf2:{{ fsc.cliente_s.telefono2 }}" placeholder="Buscar" autocomplete="off" readonly="readonly"/>
                   <span class="input-group-btn">
-                     <button class="btn btn-sm btn-default" type="button" onclick="document.f_tpv.ac_cliente.value=''; document.f_tpv.ac_cliente.focus();">
+                     <button class="btn btn-sm btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
                         <span class="glyphicon glyphicon-edit"></span>
                      </button>
                   </span>
                </div>
                <p class="help-block">
-                  <a href="{{ fsc.cliente.url()|raw }}#nuevo" target="_blank">Nuevo cliente</a>.
+                  <a href="#" class="tpvmod-b-editar-cliente">Editar cliente</a>
+                  ·
+                  <a href="#" class="tpvmod-b-nuevo-cliente">Nuevo cliente</a>
                </p>
             </div>
          </div>
@@ -160,16 +148,16 @@
          <div class="table-responsive">
             <table class="table table-condensed">
                <thead>
-                   <thead>
                    <th style="width:60px">Ref</th>
-                        <th class="text-left">Artículo</th>
-                        <th class="text-right" style="width:50px">Cantidad</th>
-                        <th style="width:30px"></th>
-                        <th class="text-right" style="width:80px">Precio</th>
-                        <th class="text-right" style="width:80px">Neto</th>
-                        <th class="text-right" style="width:90px">{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
-                    <th class="text-right" style="width:90px">Total</th>
-               </thead>
+                   <th class="text-left">Artículo</th>
+                   <th class="text-right" style="width:50px">Cantidad</th>
+                   <th style="width:60px" title="Arrastrar o eliminar"></th>
+                   <th class="text-right" style="width:80px">Precio</th>
+                   <th class="text-right" style="width:80px">Neto</th>
+                   <th class="text-right" style="width:90px">{% if defined('FS_IVA') %}{{ constant('FS_IVA') }}{% endif %}</th>
+                   <th class="text-right recargo" style="width:70px; display:none;">R.E.</th>
+                   <th class="text-right irpf" style="width:70px; display:none;">{% if defined('FS_IRPF') %}{{ constant('FS_IRPF') }}{% else %}IRPF{% endif %}</th>
+                   <th class="text-right" style="width:90px">Total</th>
                </thead>
                <tbody id="lineas_albaran">
                   <tr class="bg-info">
@@ -182,10 +170,15 @@
                      <td colspan="3" class="text-right">Totales:</td>
                      <td><div id="aneto" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                      <td><div id="aiva" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
+                     <td class="recargo" style="display:none;"><div id="are" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
+                     <td class="irpf" style="display:none;"><div id="airpf" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                      <td><div id="atotal" class="form-control text-right input-sm" style="font-weight: bold;">{{ fsc.show_numero(0) }}</div></td>
                   </tr>
                </tbody>
             </table>
+            <p class="help-block hidden-xs">
+               <i class="fa fa-arrows-v"></i> Arrastra el icono de flechas para reordenar las líneas.
+            </p>
          </div>
       </div>
       <div class="tab-pane" id="tab_opciones">
@@ -281,7 +274,7 @@
                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                   <span aria-hidden="true">&times;</span>
                </button>
-               <h4 class="modal-title" id="myModalLabel">Guardar ticket</h4>
+               <h4 class="modal-title" id="myModalLabel">Guardar documento</h4>
             </div>
             <div class="modal-body">
                <div class="form-group col-md-6">
@@ -301,7 +294,7 @@
                {% for tipo in fsc.tipos_a_guardar() %}
                <div class="radio col-md-6">
                   <label>
-                     <input type="radio" name="tipo" value="{{ tipo.tipo }}"{% if tipo.tipo == fsc.tipo %} checked="checked"{% endif %}/>
+                     <input type="radio" name="tipo" value="{{ tipo.tipo }}"/>
                      {{ tipo.nombre }}
                   </label>
                </div>
@@ -321,7 +314,7 @@
             </div>
             <div class="modal-footer">
                <div class="form-group col-md-12">
-               <button class="btn btn-sm btn-primary" type="submit" onclick="this.disabled=true;$('#tpv_total').prop('disabled',false);this.form.submit();">
+               <button class="btn btn-sm btn-primary" type="submit" onclick="return tpvmod_submit_guardar(this);">
                   <span class="glyphicon glyphicon-floppy-disk"></span> &nbsp; Guardar
                </button>
                </div>
@@ -379,3 +372,5 @@
       </div>
    </div>
 </div>
+
+{% include 'partials/modal_clientes.html.twig' %}

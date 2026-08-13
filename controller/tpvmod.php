@@ -35,6 +35,8 @@ require_model('serie.php');
 require_model('tarifa.php');
 require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
+require_once dirname(__DIR__) . '/lib/tpvmod_cliente_ajax.php';
+require_model('direccion_cliente.php');
 
 class tpvmod extends fs_controller
 {
@@ -102,9 +104,8 @@ class tpvmod extends fs_controller
       $candidate0 = (string) $settings0->get('tpvmod_terminal_mode', 'with_terminal');
       $this->terminal_mode = tpvmod_terminal_mode_effective($candidate0);
 
-      if( isset($_REQUEST['buscar_cliente']) )
-      {
-         $this->buscar_cliente();
+      if (tpvmod_cliente_ajax_dispatch($this)) {
+         return;
       }
       else if( isset($_REQUEST['datoscliente']) )
       {
@@ -135,9 +136,9 @@ class tpvmod extends fs_controller
                      if($this->documento)
                       {
                          $this->page->title = $this->documento->codigo;
-                         $this->url_listado="./index.php?page=tpvmod_albaranes";
-                         $urlAlbaran = tpvmod_imprimir_url('albaran');
-                         $this->url_imprimir = $urlAlbaran !== null ? $urlAlbaran : '';
+                          $this->url_listado="./index.php?page=tpvmod_albaranes";
+                          $urlAlbaran = tpvmod_imprimir_url('albaran');
+                          $this->url_imprimir = $urlAlbaran !== null ? $urlAlbaran : './index.php?page=factura_detallada&tipo=albaran&id=';
                          $this->nom_documento=FS_ALBARANES;
                          /// cargamos el cliente
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -157,9 +158,9 @@ class tpvmod extends fs_controller
                      if($this->documento)
                       {
                          $this->page->title = $this->documento->codigo;
-                         $this->url_listado="./index.php?page=tpvmod_presupuestos";
-                         $urlPresu = tpvmod_imprimir_url('presupuesto');
-                         $this->url_imprimir = $urlPresu !== null ? $urlPresu : '';
+                          $this->url_listado="./index.php?page=tpvmod_presupuestos";
+                          $urlPresu = tpvmod_imprimir_url('presupuesto');
+                          $this->url_imprimir = $urlPresu !== null ? $urlPresu : './index.php?page=factura_detallada&tipo=presupuesto&id=';
                          /// cargamos el cliente
                          $this->nom_documento=FS_PRESUPUESTOS;
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -179,9 +180,9 @@ class tpvmod extends fs_controller
                      if($this->documento)
                       {
                          $this->page->title = $this->documento->codigo;
-                         $this->url_listado="./index.php?page=tpvmod_pedidos";
-                         $urlPedido = tpvmod_imprimir_url('pedido');
-                         $this->url_imprimir = $urlPedido !== null ? $urlPedido : '';
+                          $this->url_listado="./index.php?page=tpvmod_pedidos";
+                          $urlPedido = tpvmod_imprimir_url('pedido');
+                          $this->url_imprimir = $urlPedido !== null ? $urlPedido : './index.php?page=factura_detallada&tipo=pedido&id=';
                          $this->nom_documento=FS_PEDIDOS;
                          /// cargamos el cliente
                          $this->cliente_s = $this->cliente->get($this->documento->codcliente);
@@ -418,6 +419,10 @@ class tpvmod extends fs_controller
                                 $this->edita_factura_cliente();
                             }
          		}
+                        else
+                        {
+                           $this->new_error_msg('Debes seleccionar el tipo de documento a guardar.');
+                        }
                   }
                }
                else if( isset($_GET['reticket']) )
@@ -443,21 +448,6 @@ class tpvmod extends fs_controller
       }
    }
 
-   private function buscar_cliente()
-   {
-      /// desactivamos la plantilla HTML
-      $this->template = FALSE;
-
-      $json = array();
-      foreach($this->cliente->search($_REQUEST['buscar_cliente']) as $cli)
-      {
-         $json[] = array('value' => "$cli->nombre Tlf:$cli->telefono1  Tlf2:$cli->telefono2", 'data' => $cli->codcliente);
-      }
-
-      header('Content-Type: application/json');
-      echo json_encode( array('query' => $_REQUEST['buscar_cliente'], 'suggestions' => $json) );
-   }
-
    private function datos_cliente()
    {
       $this->template = FALSE;
@@ -471,116 +461,27 @@ class tpvmod extends fs_controller
       }
 
       header('Content-Type: application/json');
-      echo json_encode(array(
-         'codcliente' => $cli->codcliente,
-         'regimeniva' => $cli->regimeniva,
-         'recargo' => $cli->recargo,
-      ));
+      echo json_encode(tpvmod_datos_cliente_payload($cli));
    }
 
    public function busca_articulos($query='', $offset=0, $codfamilia='', $con_stock=FALSE, $codfabricante='', $bloqueados=FALSE)
    {
-      $artilist = array();
-      $query = $this->articulo->no_html( strtolower($query) );
-      
-      /*if($query != '' AND $offset == 0 AND $codfamilia == '' AND $codfabricante == '' AND !$con_stock AND !$bloqueados)
+      return $this->articulo->search($query, $offset, $codfamilia, $con_stock, $codfabricante, $bloqueados);
+   }
+
+   /**
+    * Cliente payload for TPV JavaScript (includes effective D1–D4).
+    *
+    * @return array<string, mixed>|false
+    */
+   public function cliente_tpv_json()
+   {
+      if( !$this->cliente_s )
       {
-         /// intentamos obtener los datos de memcache
-         if( $this->new_search_tag($query) )
-         {
-            $artilist = $this->cache->get_array('articulos_search_'.$query);
-         }
-      }*/
-      
-      if( count($artilist) <= 1 )
-      {
-         $sql = "SELECT * FROM articulos";
-         $separador = ' WHERE';
-         
-         if($codfamilia != '')
-         {
-            $sql .= $separador." codfamilia = ".$this->articulo->var2str($codfamilia);
-            $separador = ' AND';
-         }
-         
-         if($codfabricante != '')
-         {
-            $sql .= $separador." codfabricante = ".$this->articulo->var2str($codfabricante);
-            $separador = ' AND';
-         }
-         
-         if($con_stock)
-         {
-            $sql .= $separador." stockfis > 0";
-            $separador = ' AND';
-         }
-         
-         if($bloqueados)
-         {
-            $sql .= $separador." bloqueado";
-            $separador = ' AND';
-         }
-         else
-         {
-            $sql .= $separador." bloqueado = FALSE";
-            $separador = ' AND';
-         }
-         
-         $palabras=explode(" ",$query); 
-         $numero=count($palabras); 
-         if($query == '')
-         {
-            /// nada
-         }
-         else if( is_numeric($query) )
-         {
-            $sql .= $separador." ( referencia LIKE '%".$query."%' OR equivalencia LIKE '%".$query."%'"
-                    . " OR descripcion LIKE '%".$query."%' OR codbarras = '".$query."')";
-         }
-         else if($numero==1)
-         {
-            $sql .= $separador." (lower(referencia) LIKE '%".$query."%' OR lower(equivalencia) LIKE '%".$query."%'"
-                    . " OR lower(descripcion) LIKE '%".$query."%')";
-         }
-         else
-         {
-            $buscar = str_replace(' ', '%', $query);
-            $sql .= $separador." (";
-            $sql .= "lower(referencia) LIKE '%".$buscar."%'"
-                    . " OR lower(equivalencia) LIKE '%".$buscar."%' OR (";
-             $i=0;
-             foreach ($palabras as $palabra) {
-                 $sql .= " lower(descripcion) LIKE '%".$palabra."%'";
-                 $i++;
-                 if($i<count($palabras))
-                 {
-                     $sql .=") AND (";
-                 }
-             }
-             $sql .="))";
-         }
-         
-         if( strtolower(FS_DB_TYPE) == 'mysql' )
-         {
-            $sql .= " ORDER BY lower(referencia) ASC";
-         }
-         else
-         {
-            $sql .= " ORDER BY referencia ASC";
-         }
-         //$this->debug_to_console($sql);
-         //$this->new_message($sql);
-         $data = $this->db->select_limit($sql, FS_ITEM_LIMIT, $offset);
-         if($data)
-         {
-            foreach($data as $a)
-            {
-               $artilist[] = new articulo($a);
-            }
-         }
+         return FALSE;
       }
-      
-      return $artilist;
+
+      return tpvmod_datos_cliente_payload($this->cliente_s);
    }
    
    function debug_to_console( $data ) {
@@ -609,10 +510,24 @@ class tpvmod extends fs_controller
       $this->results = $this->busca_articulos($this->query, 0, $codfamilia, $con_stock);
 
       /// añadimos el descuento y la cantidad
+      $clientDiscounts = ['d1' => 0.0, 'd2' => 0.0, 'd3' => 0.0, 'd4' => 0.0];
+      if( isset($_POST['codcliente']) )
+      {
+         $clienteBusqueda = $this->cliente->get($_POST['codcliente']);
+         if($clienteBusqueda)
+         {
+            $clientDiscounts = tpvmod_resolve_cliente_descuentos($clienteBusqueda);
+         }
+      }
+
       foreach($this->results as $i => $value)
       {
-         $this->results[$i]->dtopor = 0;
+         $this->results[$i]->dtopor = $clientDiscounts['d1'];
+         $this->results[$i]->dtopor2 = $clientDiscounts['d2'];
+         $this->results[$i]->dtopor3 = $clientDiscounts['d3'];
+         $this->results[$i]->dtopor4 = $clientDiscounts['d4'];
          $this->results[$i]->cantidad = 1;
+         $this->results[$i]->pvp_con_dto = $value->pvp * tpvmod_calc_due_multiplier($clientDiscounts);
       }
 
       /// ejecutamos las funciones de las extensiones
@@ -736,10 +651,10 @@ class tpvmod extends fs_controller
          if( $presupuesto->save() )
          {
             $art0 = new articulo();
-            $n = floatval($_POST['numlineas']);
-            for($i = 0; $i <= $n; $i++)
+            $n = intval($_POST['numlineas']);
+            for($i = 1; $i <= $n; $i++)
             {
-               if( isset($_POST['referencia_'.$i]) )
+               if( isset($_POST['referencia_'.$i]) || isset($_POST['desc_'.$i]) )
                {
                    $linea = new linea_presupuesto_cliente();
                      $linea->idpresupuesto = $presupuesto->idpresupuesto;
@@ -768,12 +683,14 @@ class tpvmod extends fs_controller
                      if($linea->iva > 0)
                         $linea->irpf = $presupuesto->irpf;
 
-                     $linea->pvpunitario = floatval($_POST['pvp_'.$i]);
-                     $linea->cantidad = floatval($_POST['cantidad_'.$i]);
-                     //$linea->dtopor = floatval($_POST['000001'.$i]);
-                     $linea->pvpsindto = ($linea->pvpunitario * $linea->cantidad);
-                     $linea->pvptotal = floatval($_POST['neto_'.$i]);
+                     tpvmod_populate_linea_descuentos(
+                        $linea,
+                        $cliente,
+                        floatval($_POST['cantidad_'.$i]),
+                        floatval($_POST['pvp_'.$i])
+                     );
 
+                     tpvmod_apply_line_orden($linea, $i, $n);
                      if( $linea->save() )
                      {
                         $presupuesto->neto += $linea->pvptotal;
@@ -895,12 +812,14 @@ class tpvmod extends fs_controller
                      if($linea->iva > 0)
                         $linea->irpf = $factura->irpf;
 
-                     $linea->pvpunitario = floatval($_POST['pvp_'.$i]);
-                     $linea->cantidad = floatval($_POST['cantidad_'.$i]);
-                     //$linea->dtopor = floatval($_POST['dto_'.$i]);
-                     $linea->pvpsindto = ($linea->pvpunitario * $linea->cantidad);
-                     $linea->pvptotal = floatval($_POST['neto_'.$i]);
+                     tpvmod_populate_linea_descuentos(
+                        $linea,
+                        $cliente,
+                        floatval($_POST['cantidad_'.$i]),
+                        floatval($_POST['pvp_'.$i])
+                     );
 
+                     tpvmod_apply_line_orden($linea, $i, (int) $n);
                      if( $linea->save() )
                      {
                         /// descontamos del stock
@@ -1034,12 +953,14 @@ class tpvmod extends fs_controller
                  if($linea->iva > 0)
                     $linea->irpf = $pedido->irpf;
                  //corregido de lo pasado en ventas
-                 $linea->pvpunitario = floatval($_POST['pvp_'.$i]);
-                 $linea->cantidad = floatval($_POST['cantidad_'.$i]);
-                 //$linea->dtopor = floatval($_POST['dto_'.$i]);
-                 $linea->pvpsindto = ($linea->pvpunitario * $linea->cantidad);
-                 $linea->pvptotal = floatval($_POST['neto_'.$i]);
+                 tpvmod_populate_linea_descuentos(
+                    $linea,
+                    $cliente,
+                    floatval($_POST['cantidad_'.$i]),
+                    floatval($_POST['pvp_'.$i])
+                 );
 
+                 tpvmod_apply_line_orden($linea, $i, (int) $n);
                  if( $linea->save() )
                  {
                     $pedido->neto += $linea->pvptotal;
@@ -1184,12 +1105,14 @@ class tpvmod extends fs_controller
 
 
                  $linea->irpf = floatval($_POST['irpf_'.$i]);
-                 $linea->pvpunitario = floatval($_POST['pvp_'.$i]);
-                 $linea->cantidad = floatval($_POST['cantidad_'.$i]);
-                 //$linea->dtopor = floatval($_POST['dto_'.$i]);
-                 $linea->pvpsindto = ($linea->pvpunitario * $linea->cantidad);
-                 $linea->pvptotal = floatval($_POST['neto_'.$i]);
+                 tpvmod_populate_linea_descuentos(
+                    $linea,
+                    $cliente,
+                    floatval($_POST['cantidad_'.$i]),
+                    floatval($_POST['pvp_'.$i])
+                 );
 
+                 tpvmod_apply_line_orden($linea, $i, (int) $n);
                  if( $linea->save() )
                  {
                     /// descontamos del stock
@@ -1348,11 +1271,13 @@ class tpvmod extends fs_controller
                 }
 
                 /// modificamos y/o añadimos las demás líneas
+                $linePosition = 0;
                 for($num = 0; $num <= $numlineas; $num++)
                 {
                    $encontrada = FALSE;
                    if( isset($_POST['idlinea_'.$num]) )
                    {
+                      $linePosition++;
                       foreach($lineas as $k => $value)
                       {
                          /// modificamos la línea
@@ -1361,11 +1286,12 @@ class tpvmod extends fs_controller
 
                             $encontrada = TRUE;
                             $cantidad_old = $value->cantidad;
-                            $lineas[$k]->cantidad = floatval($_POST['cantidad_'.$num]);
-                            $lineas[$k]->pvpunitario = floatval($_POST['pvp_'.$num]);
-                            //$lineas[$k]->dtopor = floatval($_POST['dto_'.$num]);
-                            $lineas[$k]->pvpsindto = ($value->cantidad * $value->pvpunitario);
-                            $lineas[$k]->pvptotal = ($value->cantidad * $value->pvpunitario * (100 - $value->dtopor)/100);
+                            tpvmod_populate_linea_descuentos(
+                               $lineas[$k],
+                               $this->cliente_s,
+                               floatval($_POST['cantidad_'.$num]),
+                               floatval($_POST['pvp_'.$num])
+                            );
                             $lineas[$k]->descripcion = $_POST['desc_'.$num];
 
                             $lineas[$k]->codimpuesto = NULL;
@@ -1382,6 +1308,7 @@ class tpvmod extends fs_controller
                                $lineas[$k]->recargo = floatval($_POST['recargo_'.$num]);
                             }
 
+                            tpvmod_apply_line_orden($lineas[$k], $linePosition, $numlineas);
                             if( $lineas[$k]->save() )
                             {
                                $albaran->neto += $value->pvptotal;
@@ -1421,11 +1348,12 @@ class tpvmod extends fs_controller
                          }
 
                          $linea->irpf = floatval($_POST['irpf_'.$num]);
-                         $linea->cantidad = floatval($_POST['cantidad_'.$num]);
-                         $linea->pvpunitario = floatval($_POST['pvp_'.$num]);
-                         //$linea->dtopor = floatval($_POST['dto_'.$num]);
-                         $linea->pvpsindto = ($linea->cantidad * $linea->pvpunitario);
-                         $linea->pvptotal = ($linea->cantidad * $linea->pvpunitario * (100 - $linea->dtopor)/100);
+                         tpvmod_populate_linea_descuentos(
+                            $linea,
+                            $this->cliente_s,
+                            floatval($_POST['cantidad_'.$num]),
+                            floatval($_POST['pvp_'.$num])
+                         );
 
                          $art0 = $articulo->get( $_POST['referencia_'.$num] );
                          if($art0)
@@ -1433,6 +1361,7 @@ class tpvmod extends fs_controller
                             $linea->referencia = $art0->referencia;
                          }
 
+                         tpvmod_apply_line_orden($linea, $linePosition, $numlineas);
                          if( $linea->save() )
                          {
                             if($art0)
@@ -1580,11 +1509,13 @@ class tpvmod extends fs_controller
                 }
 
                 /// modificamos y/o añadimos las demás líneas
+                $linePosition = 0;
                 for($num = 0; $num <= $numlineas; $num++)
                 {
                    $encontrada = FALSE;
                    if( isset($_POST['idlinea_'.$num]) )
                    {
+                      $linePosition++;
                       foreach($lineas as $k => $value)
                       {
                          /// modificamos la línea
@@ -1593,11 +1524,12 @@ class tpvmod extends fs_controller
 
                             $encontrada = TRUE;
                             $cantidad_old = $value->cantidad;
-                            $lineas[$k]->cantidad = floatval($_POST['cantidad_'.$num]);
-                            $lineas[$k]->pvpunitario = floatval($_POST['pvp_'.$num]);
-                            //$lineas[$k]->dtopor = floatval($_POST['dto_'.$num]);
-                            $lineas[$k]->pvpsindto = ($value->cantidad * $value->pvpunitario);
-                            $lineas[$k]->pvptotal = ($value->cantidad * $value->pvpunitario * (100 - $value->dtopor)/100);
+                            tpvmod_populate_linea_descuentos(
+                               $lineas[$k],
+                               $this->cliente_s,
+                               floatval($_POST['cantidad_'.$num]),
+                               floatval($_POST['pvp_'.$num])
+                            );
                             $lineas[$k]->descripcion = $_POST['desc_'.$num];
 
                             $lineas[$k]->codimpuesto = NULL;
@@ -1614,6 +1546,7 @@ class tpvmod extends fs_controller
                                $lineas[$k]->recargo = floatval($_POST['recargo_'.$num]);
                             }
 
+                            tpvmod_apply_line_orden($lineas[$k], $linePosition, $numlineas);
                             if( $lineas[$k]->save() )
                             {
                                $pedido->neto += $value->pvptotal;
@@ -1648,11 +1581,12 @@ class tpvmod extends fs_controller
                          }
 
                          $linea->irpf = floatval($_POST['irpf_'.$num]);
-                         $linea->cantidad = floatval($_POST['cantidad_'.$num]);
-                         $linea->pvpunitario = floatval($_POST['pvp_'.$num]);
-                         //$linea->dtopor = floatval($_POST['dto_'.$num]);
-                         $linea->pvpsindto = ($linea->cantidad * $linea->pvpunitario);
-                         $linea->pvptotal = ($linea->cantidad * $linea->pvpunitario * (100 - $linea->dtopor)/100);
+                         tpvmod_populate_linea_descuentos(
+                            $linea,
+                            $this->cliente_s,
+                            floatval($_POST['cantidad_'.$num]),
+                            floatval($_POST['pvp_'.$num])
+                         );
 
                          $art0 = $articulo->get( $_POST['referencia_'.$num] );
                          if($art0)
@@ -1660,6 +1594,7 @@ class tpvmod extends fs_controller
                             $linea->referencia = $art0->referencia;
                          }
 
+                         tpvmod_apply_line_orden($linea, $linePosition, $numlineas);
                          if( $linea->save() )
                          {
 
@@ -1804,11 +1739,13 @@ class tpvmod extends fs_controller
                 }
 
                 /// modificamos y/o añadimos las demás líneas
+                $linePosition = 0;
                 for($num = 0; $num <= $numlineas; $num++)
                 {
                    $encontrada = FALSE;
                    if( isset($_POST['idlinea_'.$num]) )
                    {
+                      $linePosition++;
                       foreach($lineas as $k => $value)
                       {
                          /// modificamos la línea
@@ -1817,11 +1754,12 @@ class tpvmod extends fs_controller
 
                             $encontrada = TRUE;
                             $cantidad_old = $value->cantidad;
-                            $lineas[$k]->cantidad = floatval($_POST['cantidad_'.$num]);
-                            $lineas[$k]->pvpunitario = floatval($_POST['pvp_'.$num]);
-                            //$lineas[$k]->dtopor = floatval($_POST['dto_'.$num]);
-                            $lineas[$k]->pvpsindto = ($value->cantidad * $value->pvpunitario);
-                            $lineas[$k]->pvptotal = ($value->cantidad * $value->pvpunitario * (100 - $value->dtopor)/100);
+                            tpvmod_populate_linea_descuentos(
+                               $lineas[$k],
+                               $this->cliente_s,
+                               floatval($_POST['cantidad_'.$num]),
+                               floatval($_POST['pvp_'.$num])
+                            );
                             $lineas[$k]->descripcion = $_POST['desc_'.$num];
 
                             $lineas[$k]->codimpuesto = NULL;
@@ -1838,6 +1776,7 @@ class tpvmod extends fs_controller
                                $lineas[$k]->recargo = floatval($_POST['recargo_'.$num]);
                             }
 
+                            tpvmod_apply_line_orden($lineas[$k], $linePosition, $numlineas);
                             if( $lineas[$k]->save() )
                             {
                                $presupuesto->neto += $value->pvptotal;
@@ -1871,11 +1810,12 @@ class tpvmod extends fs_controller
                          }
 
                          $linea->irpf = floatval($_POST['irpf_'.$num]);
-                         $linea->cantidad = floatval($_POST['cantidad_'.$num]);
-                         $linea->pvpunitario = floatval($_POST['pvp_'.$num]);
-                         $linea->dtopor = floatval($_POST['dto_'.$num]);
-                         $linea->pvpsindto = ($linea->cantidad * $linea->pvpunitario);
-                         $linea->pvptotal = ($linea->cantidad * $linea->pvpunitario * (100 - $linea->dtopor)/100);
+                         tpvmod_populate_linea_descuentos(
+                            $linea,
+                            $this->cliente_s,
+                            floatval($_POST['cantidad_'.$num]),
+                            floatval($_POST['pvp_'.$num])
+                         );
 
                          $art0 = $articulo->get( $_POST['referencia_'.$num] );
                          if($art0)
@@ -1883,6 +1823,7 @@ class tpvmod extends fs_controller
                             $linea->referencia = $art0->referencia;
                          }
 
+                         tpvmod_apply_line_orden($linea, $linePosition, $numlineas);
                          if( $linea->save() )
                          {
 
@@ -2044,11 +1985,13 @@ class tpvmod extends fs_controller
                 }
 
                 /// modificamos y/o añadimos las demás líneas
+                $linePosition = 0;
                 for($num = 0; $num <= $numlineas; $num++)
                 {
                    $encontrada = FALSE;
                    if( isset($_POST['idlinea_'.$num]) )
                    {
+                      $linePosition++;
                       foreach($lineas as $k => $value)
                       {
                          /// modificamos la línea
@@ -2057,11 +2000,12 @@ class tpvmod extends fs_controller
 
                             $encontrada = TRUE;
                             $cantidad_old = $value->cantidad;
-                            $lineas[$k]->cantidad = floatval($_POST['cantidad_'.$num]);
-                            $lineas[$k]->pvpunitario = floatval($_POST['pvp_'.$num]);
-                            $lineas[$k]->dtopor = 0;
-                            $lineas[$k]->pvpsindto = ($value->cantidad * $value->pvpunitario);
-                            $lineas[$k]->pvptotal = ($value->cantidad * $value->pvpunitario * (100 - $value->dtopor)/100);
+                            tpvmod_populate_linea_descuentos(
+                               $lineas[$k],
+                               $this->cliente_s,
+                               floatval($_POST['cantidad_'.$num]),
+                               floatval($_POST['pvp_'.$num])
+                            );
                             $lineas[$k]->descripcion = $_POST['desc_'.$num];
 
                             $lineas[$k]->codimpuesto = NULL;
@@ -2078,6 +2022,7 @@ class tpvmod extends fs_controller
                                $lineas[$k]->recargo = floatval($_POST['recargo_'.$num]);
                             }
 
+                            tpvmod_apply_line_orden($lineas[$k], $linePosition, $numlineas);
                             if( $lineas[$k]->save() )
                             {
                                if(!isset($lineas_iva[$lineas[$k]->codimpuesto])){
@@ -2131,11 +2076,12 @@ class tpvmod extends fs_controller
                          }
 
                          $linea->irpf = floatval($_POST['irpf_'.$num]);
-                         $linea->cantidad = floatval($_POST['cantidad_'.$num]);
-                         $linea->pvpunitario = floatval($_POST['pvp_'.$num]);
-                         $linea->dtopor = floatval($_POST['dto_'.$num]);
-                         $linea->pvpsindto = ($linea->cantidad * $linea->pvpunitario);
-                         $linea->pvptotal = ($linea->cantidad * $linea->pvpunitario * (100 - $linea->dtopor)/100);
+                         tpvmod_populate_linea_descuentos(
+                            $linea,
+                            $this->cliente_s,
+                            floatval($_POST['cantidad_'.$num]),
+                            floatval($_POST['pvp_'.$num])
+                         );
 
                          $art0 = $articulo->get( $_POST['referencia_'.$num] );
                          if($art0)
@@ -2143,6 +2089,7 @@ class tpvmod extends fs_controller
                             $linea->referencia = $art0->referencia;
                          }
 
+                         tpvmod_apply_line_orden($linea, $linePosition, $numlineas);
                          if( $linea->save() )
                          {
                              if(!isset($lineas_iva[$linea->codimpuesto])){

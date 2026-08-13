@@ -39,7 +39,7 @@
             </td>
             <td class="text-right">
                <span title="actualizado el {{ value.factualizado }}">
-                  {{ fsc.show_precio(value.pvp * (100 - value.dtopor) / 100 * (100 + value.get_iva()) / 100) }}
+                  {{ fsc.show_precio(value.pvp_con_dto * (100 + value.get_iva()) / 100) }}
                </span>
             </td>
             <td class="text-right">{{ value.stockfis }}</td>

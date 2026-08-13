@@ -20,8 +20,10 @@
 require_model('agente.php');
 require_model('articulo.php');
 require_model('cliente.php');
+require_model('direccion_cliente.php');
 require_model('presupuesto_cliente.php');
 require_model('serie.php');
+require_once dirname(__DIR__) . '/lib/tpvmod_cliente_ajax.php';
 
 class tpvmod_presupuestos extends fs_controller
 {
@@ -106,9 +108,8 @@ class tpvmod_presupuestos extends fs_controller
       {
          $this->buscar_lineas();
       }
-      else if( isset($_REQUEST['buscar_cliente']) )
-      {
-         $this->buscar_cliente();
+      else if (tpvmod_cliente_ajax_dispatch($this)) {
+         return;
       }
       else if( isset($_GET['ref']) )
       {
@@ -226,22 +227,6 @@ class tpvmod_presupuestos extends fs_controller
             $this->resultados = $presupuesto->all($this->offset, $this->order.$order2);
          }
       }
-   }
-   
-   private function buscar_cliente()
-   {
-      /// desactivamos la plantilla HTML
-      $this->template = FALSE;
-      
-      $cli0 = new cliente();
-      $json = array();
-      foreach($cli0->search($_REQUEST['buscar_cliente']) as $cli)
-      {
-         $json[] = array('value' => $cli->nombre, 'data' => $cli->codcliente);
-      }
-      
-      header('Content-Type: application/json');
-      echo json_encode( array('query' => $_REQUEST['buscar_cliente'], 'suggestions' => $json) );
    }
    
    public function paginas()

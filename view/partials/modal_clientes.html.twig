@@ -1,0 +1,63 @@
+{#
+/**
+ * Plugin: tpvmod
+ * Modales compartidos: búsqueda de clientes y formulario alta/edición.
+ * Incluir al final de las pantallas TPV que usan selector de cliente.
+ */
+#}
+<script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod-cliente.js?v={{ fsc.today() }}"></script>
+
+<div class="modal" id="modal_clientes" tabindex="-1" role="dialog">
+   <div class="modal-dialog" style="width: 99%; max-width: 950px;">
+      <div class="modal-content">
+         <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title">Buscar clientes</h4>
+         </div>
+         <div class="modal-body">
+            <form id="f_buscar_clientes" name="f_buscar_clientes" action="{{ tpv_cliente_url|default(fsc.url())|raw }}" method="post" class="form">
+               {{ csrf_field() }}
+               <input type="hidden" name="buscar_cliente_modal" value="1"/>
+               <div class="container-fluid">
+                  <div class="row">
+                     <div class="col-sm-8">
+                        <div class="input-group">
+                           <input class="form-control input-sm" type="text" name="query" autocomplete="off" placeholder="Nombre, CIF, teléfono..."/>
+                           <span class="input-group-btn">
+                              <button class="btn btn-sm btn-primary" type="submit">
+                                 <span class="glyphicon glyphicon-search"></span>
+                              </button>
+                           </span>
+                        </div>
+                     </div>
+                     <div class="col-sm-4 text-right">
+                        <button type="button" class="btn btn-sm btn-success" onclick="tpvmodAbrirFormularioCliente('')">
+                           <span class="glyphicon glyphicon-plus"></span> Nuevo cliente
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            </form>
+         </div>
+         <div id="cliente_search_results"></div>
+      </div>
+   </div>
+</div>
+
+<div class="modal" id="modal_cliente_form" tabindex="-1" role="dialog">
+   <div class="modal-dialog" style="width: 99%; max-width: 960px;">
+      <div class="modal-content">
+         <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title" id="modal_cliente_form_title">Cliente</h4>
+         </div>
+         <div class="modal-body" id="tpv_cliente_form_body">
+            <div class="text-center text-muted">Cargando...</div>
+         </div>
+      </div>
+   </div>
+</div>
+
+<script type="text/javascript">
+   tpvmodInitClienteModales('{{ tpv_cliente_url|default(fsc.url())|raw }}');
+</script>

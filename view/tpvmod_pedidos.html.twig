@@ -49,7 +49,7 @@
    {
       document.f_custom_search.ac_cliente.value='';
       document.f_custom_search.codcliente.value='';
-      document.f_custom_search.ac_cliente.focus();
+      document.f_custom_search.submit();
    }
    $(document).ready(function() {
 
@@ -68,20 +68,6 @@
       $('#f_buscar_lineas').submit(function(event) {
          event.preventDefault();
          buscar_lineas();
-      });
-      $("#ac_cliente").devbridgeAutocomplete({
-         serviceUrl: '{{ fsc.url()|raw }}',
-         paramName: 'buscar_cliente',
-         onSelect: function (suggestion) {
-            if(suggestion)
-            {
-               if(document.f_custom_search.codcliente.value != suggestion.data && suggestion.data != '')
-               {
-                  document.f_custom_search.codcliente.value = suggestion.data;
-                  document.f_custom_search.submit();
-               }
-            }
-         }
       });
    });
 </script>
@@ -249,12 +235,15 @@
             <div class="form-group">
                <div class="input-group">
                   {% if fsc.cliente %}
-                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off"/>
+                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
                   {% else %}
-                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off"/>
+                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
                   {% endif %}
                   <span class="input-group-btn">
-                     <button class="btn btn-default" type="button" onclick="clean_cliente()">
+                     <button class="btn btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
+                        <span class="glyphicon glyphicon-edit"></span>
+                     </button>
+                     <button class="btn btn-default" type="button" onclick="clean_cliente()" title="Quitar filtro">
                         <span class="glyphicon glyphicon-remove"></span>
                      </button>
                   </span>
@@ -401,4 +390,5 @@
    </div>
 </form>
 
+{% include 'partials/modal_clientes.html.twig' %}
 {% include 'footer.html.twig' %}

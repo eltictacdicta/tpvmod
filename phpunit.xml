@@ -17,7 +17,6 @@
             <directory>lib</directory>
         </include>
     </source>
-
     <php>
         <env name="SYMFONY_DEPRECATIONS_HELPER" value="weak"/>
     </php>
