@@ -70,6 +70,94 @@ function tpvmod_line_neto(cantidad, pvp, discounts)
    );
 }
 
+function tpvmod_cliente_tiene_recargo()
+{
+   return !!(cliente && (cliente.recargo === true || cliente.recargo === 1 || cliente.recargo === '1'));
+}
+
+function tpvmod_with_cliente_sync(callback)
+{
+   if(typeof callback !== 'function')
+      return;
+
+   if(!document.f_tpv || !document.f_tpv.cliente || nueva_venta_url === '')
+   {
+      callback();
+      return;
+   }
+
+   var cod = document.f_tpv.cliente.value;
+   if(!cod || (cliente && cliente.codcliente == cod))
+   {
+      callback();
+      return;
+   }
+
+   $.getJSON(nueva_venta_url, 'datoscliente='+encodeURIComponent(cod), function(json) {
+      if(json)
+         cliente = json;
+      callback();
+   });
+}
+
+function tpvmod_init_tpv_calculos()
+{
+   usar_serie();
+   tpvmod_with_cliente_sync(recalcular);
+}
+
+function tpvmod_update_tax_columns_visibility(total_recargo, total_irpf)
+{
+   if(tpvmod_cliente_tiene_recargo() || total_recargo != 0)
+      $(".recargo").show();
+   else
+      $(".recargo").hide();
+
+   if(total_irpf != 0)
+      $(".irpf").show();
+   else
+      $(".irpf").hide();
+}
+
+function tpvmod_recargo_for_iva(iva)
+{
+   if(!tpvmod_cliente_tiene_recargo() || siniva || (cliente && cliente.regimeniva == 'Exento'))
+      return 0;
+
+   var ivaNum = parseFloat(iva);
+   if(isNaN(ivaNum))
+      return 0;
+
+   for(var i=0; i<all_impuestos.length; i++)
+   {
+      if(!all_impuestos[i])
+         continue;
+      if(parseFloat(all_impuestos[i].iva) === ivaNum)
+         return parseFloat(all_impuestos[i].recargo) || 0;
+   }
+
+   return 0;
+}
+
+function tpvmod_set_line_recargo(lineNum, recargo)
+{
+   var recargoVal = isNaN(recargo) ? 0 : recargo;
+   var $recargoInput = $("#recargo_"+lineNum);
+   if($recargoInput.length)
+      $recargoInput.val(recargoVal);
+
+   var $recargoDiv = $("#linea_"+lineNum).find("td.recargo div.form-control");
+   if($recargoDiv.length)
+      $recargoDiv.text(recargoVal);
+}
+
+function tpvmod_line_recargo(lineNum, iva)
+{
+   var recargo = tpvmod_recargo_for_iva(iva);
+   tpvmod_set_line_recargo(lineNum, recargo);
+   return recargo;
+}
+
 function usar_cliente(codcliente)
 {
    if(nueva_venta_url !== '')
@@ -80,12 +168,12 @@ function usar_cliente(codcliente)
          if(cliente.regimeniva == 'Exento')
          {
             irpf = 0;
-            for(var j=0; j<numlineas; j++)
+            for(var j=1; j<=numlineas; j++)
             {
                if($("#linea_"+j).length > 0)
                {
                   $("#iva_"+j).val(0);
-                  $("#recargo_"+j).val(0);
+                  tpvmod_set_line_recargo(j, 0);
                   $("#irpf_"+j).html( show_numero(irpf) );
                }
             }
@@ -104,7 +192,7 @@ function usar_serie()
          siniva = all_series[i].siniva;
          irpf = all_series[i].irpf;
          
-         for(var j=0; j<numlineas; j++)
+         for(var j=1; j<=numlineas; j++)
          {
             if($("#linea_"+j).length > 0)
             {
@@ -113,7 +201,7 @@ function usar_serie()
                if(siniva)
                {
                   $("#iva_"+j).val(0);
-                  $("#recargo_"+j).val(0);
+                  tpvmod_set_line_recargo(j, 0);
                }
             }
          }
@@ -329,17 +417,10 @@ function recalcular()
          l_pvp = parseFloat( $("#pvp_"+i).val() );
          l_neto = tpvmod_line_neto(l_uds, l_pvp, discounts);
          l_iva = parseFloat( $("#iva_"+i).val() );
+         if(isNaN(l_iva))
+            l_iva = 0;
          l_irpf = irpf;
-         
-         if(cliente && cliente.recargo)
-         {
-            l_recargo = parseFloat( $("#recargo_"+i).val() );
-         }
-         else
-         {
-            l_recargo = 0;
-            $("#recargo_"+i).val(0);
-         }
+         l_recargo = tpvmod_line_recargo(i, l_iva);
          
          $("#neto_"+i).val( l_neto );
          $("#total_"+i).val( number_format(
@@ -365,23 +446,7 @@ function recalcular()
    $("#airpf").html( '-'+show_numero(total_irpf) );
    $("#atotal").html( neto + total_iva - total_irpf + total_recargo );
    
-   if(total_recargo == 0)
-   {
-      $(".recargo").hide();
-   }
-   else
-   {
-      $(".recargo").show();
-   }
-   
-   if(total_irpf == 0)
-   {
-      $(".irpf").hide();
-   }
-   else
-   {
-      $(".irpf").show();
-   }
+   tpvmod_update_tax_columns_visibility(total_recargo, total_irpf);
    
    $("#tpv_total").val( show_precio(neto + total_iva - total_irpf + total_recargo) );
    $("#tpv_total2").val(neto + total_iva - total_irpf + total_recargo);
@@ -423,13 +488,7 @@ function ajustar_total()
          if(l_iva <= 0)
             l_irpf = 0;
 
-         l_recargo = 0;
-         if(cliente && cliente.recargo)
-         {
-            l_recargo = parseFloat( $("#recargo_"+i).val() );
-            if( isNaN(l_recargo) )
-               l_recargo = 0;
-         }
+         l_recargo = tpvmod_line_recargo(i, l_iva);
 
          l_total = parseFloat( $("#total_"+i).val() );
          if( isNaN(l_total) )
@@ -481,6 +540,12 @@ function get_precios(ref)
 }
 
 function add_linea_libre()
+{
+   tpvmod_with_cliente_sync(tpvmod_add_linea_libre_core);
+   return false;
+}
+
+function tpvmod_add_linea_libre_core()
 {
    numlineas += 1;
    $("#numlineas").val(numlineas);
@@ -534,7 +599,7 @@ function resolve_iva_from_codimpuesto(codimpuesto, fallbackIva)
             iva = all_impuestos[i].iva;
             if(cliente.recargo)
             {
-               recargo = all_impuestos[i].recargo;
+               recargo = parseFloat(all_impuestos[i].recargo) || 0;
             }
             break;
          }

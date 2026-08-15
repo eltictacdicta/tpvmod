@@ -16,7 +16,7 @@
    tpv_url = '{{ fsc.url()|raw }}';
    nueva_venta_url = tpv_url;
    cliente = {{ json_encode(fsc.cliente_tpv_json())|raw }};
-   all_impuestos = {{ json_encode(fsc.impuesto.all())|raw }};
+   all_impuestos = {{ json_encode(fsc.impuestos_tpv_json())|raw }};
    all_series = {{ json_encode(fsc.serie.all())|raw }};
    if(typeof all_impuestos === 'string') {
       try { all_impuestos = JSON.parse(all_impuestos); } catch(e) { all_impuestos = []; }
@@ -26,10 +26,8 @@
    }
 
    $(document).ready(function() {
-
       $("#numlineas").val(numlineas);
-      usar_serie();
-      recalcular();
+      tpvmod_init_tpv_calculos();
    });
 </script>
 

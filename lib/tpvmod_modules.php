@@ -428,6 +428,32 @@ function tpvmod_populate_linea_descuentos(
 }
 
 /**
+ * Impuestos en JSON plano para JavaScript del TPV (iva + recargo).
+ *
+ * @param iterable<object> $impuestos
+ * @return list<array{codimpuesto: string, descripcion: string, iva: float, recargo: float}>
+ */
+function tpvmod_impuestos_tpv_json(iterable $impuestos): array
+{
+    $result = [];
+
+    foreach ($impuestos as $imp) {
+        if (!$imp) {
+            continue;
+        }
+
+        $result[] = [
+            'codimpuesto' => (string) ($imp->codimpuesto ?? ''),
+            'descripcion' => (string) ($imp->descripcion ?? ''),
+            'iva' => (float) ($imp->iva ?? 0),
+            'recargo' => (float) ($imp->recargo ?? 0),
+        ];
+    }
+
+    return $result;
+}
+
+/**
  * JSON payload for the datoscliente AJAX endpoint.
  *
  * @return array<string, mixed>

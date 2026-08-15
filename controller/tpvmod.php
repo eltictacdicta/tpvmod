@@ -483,6 +483,14 @@ class tpvmod extends fs_controller
 
       return tpvmod_datos_cliente_payload($this->cliente_s);
    }
+
+   /**
+    * @return list<array{codimpuesto: string, descripcion: string, iva: float, recargo: float}>
+    */
+   public function impuestos_tpv_json()
+   {
+      return tpvmod_impuestos_tpv_json($this->impuesto->all());
+   }
    
    function debug_to_console( $data ) {
 

@@ -101,7 +101,7 @@ function tpvmodBuscarClientes()
    });
 }
 
-function tpvmodSeleccionarCliente(codcliente, nombre, cif, telefono, labelCompleto)
+function tpvmodSeleccionarCliente(codcliente, nombre, cif, telefono, labelCompleto, clientePayload)
 {
    var label = labelCompleto || tpvmodFormatClienteLabel(nombre, telefono);
 
@@ -110,7 +110,13 @@ function tpvmodSeleccionarCliente(codcliente, nombre, cif, telefono, labelComple
       if (document.f_tpv.ac_cliente) {
          document.f_tpv.ac_cliente.value = label;
       }
-      if (typeof usar_cliente === 'function') {
+      if (clientePayload) {
+         cliente = clientePayload;
+         if (document.f_buscar_articulos) {
+            document.f_buscar_articulos.codcliente.value = cliente.codcliente;
+         }
+         recalcular();
+      } else if (typeof usar_cliente === 'function') {
          usar_cliente(codcliente);
       }
    } else if (document.f_custom_search) {
@@ -166,7 +172,7 @@ function tpvmodGuardarCliente()
             return;
          }
 
-         tpvmodSeleccionarCliente(json.codcliente, '', '', '', json.label);
+         tpvmodSeleccionarCliente(json.codcliente, '', '', '', json.label, json.cliente || null);
          $('#modal_cliente_form').modal('hide');
       },
       error: function() {

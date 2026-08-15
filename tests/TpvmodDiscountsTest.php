@@ -79,6 +79,43 @@ final class TpvmodDiscountsTest extends TestCase
         $this->assertSame(200.0, $linea->pvpsindto);
     }
 
+    public function testImpuestosTpvJsonExportsRecargo(): void
+    {
+        $impuestos = [
+            (object) [
+                'codimpuesto' => 'IVA21',
+                'descripcion' => 'IVA 21%',
+                'iva' => 21.0,
+                'recargo' => 5.2,
+            ],
+        ];
+
+        $this->assertSame([
+            [
+                'codimpuesto' => 'IVA21',
+                'descripcion' => 'IVA 21%',
+                'iva' => 21.0,
+                'recargo' => 5.2,
+            ],
+        ], tpvmod_impuestos_tpv_json($impuestos));
+    }
+
+    public function testDatosClientePayloadIncludesRecargo(): void
+    {
+        $payload = tpvmod_datos_cliente_payload(new class {
+            public string $codcliente = '000002';
+            public string $regimeniva = 'General';
+            public bool $recargo = true;
+
+            public function getEffectiveDiscounts(): array
+            {
+                return ['d1' => 0.0, 'd2' => 0.0, 'd3' => 0.0, 'd4' => 0.0];
+            }
+        });
+
+        $this->assertTrue($payload['recargo']);
+    }
+
     public function testDatosClientePayloadIncludesDiscounts(): void
     {
         $payload = tpvmod_datos_cliente_payload(new class {
