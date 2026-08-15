@@ -1,0 +1,64 @@
+/**
+ * tpvmod — optional product lines linked to catalogo_core opcionales.
+ */
+.tpvmod-line-opcional td {
+    background-color: #f9f9f9;
+}
+
+.tpvmod-line-opcional textarea.form-control {
+    padding-left: 18px;
+    font-style: italic;
+}
+
+.tpvmod-line-opcional .fa-link {
+    color: #999;
+}
+
+tr.tpvmod-missing-obligatorios > td {
+    background-color: #fff8e1;
+}
+
+/* Flash message actions after saving a document */
+.alert-success .tpvmod-guardado-actions {
+    display: inline-block;
+    margin-top: 8px;
+}
+
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 5px 14px;
+    font-size: 12px;
+    line-height: 1.5;
+    border-radius: 3px;
+    text-decoration: none !important;
+    font-weight: 600;
+    border: 1px solid transparent;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn-view {
+    color: #fff !important;
+    background-color: #2e6da4 !important;
+    border-color: #245682 !important;
+}
+
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn-view:hover,
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn-view:focus {
+    color: #fff !important;
+    background-color: #245682 !important;
+    border-color: #1b4463 !important;
+}
+
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn-print {
+    color: #333 !important;
+    background-color: #fff !important;
+    border-color: #bbb !important;
+}
+
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn-print:hover,
+.alert-success .tpvmod-guardado-actions .tpvmod-flash-btn-print:focus {
+    color: #111 !important;
+    background-color: #f4f4f4 !important;
+    border-color: #999 !important;
+}

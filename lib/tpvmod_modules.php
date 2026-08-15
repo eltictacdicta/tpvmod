@@ -168,7 +168,7 @@ function tpvmod_resolve_documento_codigos(
             null,
             $defaultItems?->coddivisa(),
             $empresa->coddivisa ?? null
-        ),
+        ) ?? 'EUR',
         'forma_pago' => $pick(
             'forma_pago',
             null,
@@ -264,7 +264,69 @@ function tpvmod_tipos_a_guardar(?array $plugins = null): array
 }
 
 /**
+ * TPV edit URL for a saved sales document.
+ *
+ * @param 'albaran'|'pedido'|'presupuesto'|'factura' $documentType
+ */
+function tpvmod_ver_url(string $documentType, int|string $id): string
+{
+    return './index.php?page=tpvmod&edita=' . $documentType . '&id=' . $id;
+}
+
+/**
+ * Bootstrap button for document actions inside flash messages.
+ */
+function tpvmod_documento_guardado_boton(
+    string $href,
+    string $label,
+    string $variant = 'view',
+    bool $newTab = false
+): string {
+    $target = $newTab ? " target='_blank' rel='noopener'" : '';
+    $class = $variant === 'print'
+        ? 'tpvmod-flash-btn tpvmod-flash-btn-print'
+        : 'tpvmod-flash-btn tpvmod-flash-btn-view';
+
+    return "<a href='" . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . "'"
+        . " class='" . $class . "'{$target}>"
+        . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</a>';
+}
+
+/**
+ * Success message after saving a document with Ver / Imprimir action buttons.
+ *
+ * Example: "Presupuesto guardado correctamente." + [Ver Presupuesto] [Imprimir]
+ *
+ * @param 'albaran'|'pedido'|'presupuesto'|'factura' $documentType
+ */
+function tpvmod_documento_guardado_message(
+    string $documentType,
+    int|string $id,
+    string $label,
+    bool $femenino = false,
+    ?array $plugins = null
+): string {
+    $participle = $femenino ? 'guardada' : 'guardado';
+    $labelDisplay = ucfirst($label);
+    $verUrl = tpvmod_ver_url($documentType, $id);
+
+    $actions = tpvmod_documento_guardado_boton($verUrl, 'Ver ' . $labelDisplay, 'view');
+
+    $printUrl = tpvmod_imprimir_url($documentType, $plugins);
+    if ($printUrl !== null) {
+        $actions .= ' ' . tpvmod_documento_guardado_boton($printUrl . $id, 'Imprimir', 'print', true);
+    }
+
+    return $labelDisplay . ' ' . $participle . ' correctamente.<br>'
+        . '<span class="tpvmod-guardado-actions" style="display:inline-block;margin-top:8px;">'
+        . $actions
+        . '</span>';
+}
+
+/**
  * HTML fragment for an optional print link appended to success messages.
+ *
+ * @deprecated Use tpvmod_documento_guardado_message() for save confirmations.
  */
 function tpvmod_imprimir_link(string $documentType, int|string $id, ?array $plugins = null): string
 {
@@ -273,7 +335,7 @@ function tpvmod_imprimir_link(string $documentType, int|string $id, ?array $plug
         return '';
     }
 
-    return " <a href='" . $url . $id . "'>Imprimir</a>";
+    return " o <a href='" . $url . $id . "'>Imprimir</a>";
 }
 
 /**

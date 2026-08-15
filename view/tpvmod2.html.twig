@@ -8,6 +8,7 @@
  * Migrado desde view/tpvmod2.html el 2026-07-18.
  */
 #}
+<link rel="stylesheet" href="plugins/tpvmod/view/css/tpvmod.css?v={{ fsc.today() }}"/>
 <script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod.js?v={{ fsc.today() }}"></script>
 <script type="text/javascript">
    fs_nf0 = typeof FS_NF0 !== 'undefined' ? FS_NF0 : 2;
@@ -16,6 +17,11 @@
    cliente = {{ json_encode(fsc.cliente_tpv_json())|raw }};
    all_impuestos = {{ json_encode(fsc.impuestos_tpv_json())|raw }};
    all_series = {{ json_encode(fsc.serie.all())|raw }};
+   tpvmod_divisas = {
+      {% for divisa in fsc.divisa.all() %}
+      '{{ divisa.coddivisa|e('js') }}': '{{ divisa.simbolo|e('js') }}'{% if not loop.last %},{% endif %}
+      {% endfor %}
+   };
    if(typeof all_impuestos === 'string') {
       try { all_impuestos = JSON.parse(all_impuestos); } catch(e) { all_impuestos = []; }
    }
@@ -373,3 +379,20 @@
 </div>
 
 {% include 'partials/modal_clientes.html.twig' %}
+
+<div class="modal fade" id="modal_opcionales" tabindex="-1" role="dialog">
+   <div class="modal-dialog" role="document">
+      <div class="modal-content">
+         <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title">Añadir opcional</h4>
+         </div>
+         <div class="modal-body" id="tpvmod_opcionales_list">
+            <p class="text-muted">Selecciona un opcional para añadirlo a la línea del producto.</p>
+         </div>
+         <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+         </div>
+      </div>
+   </div>
+</div>

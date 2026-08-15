@@ -35,6 +35,7 @@ require_model('serie.php');
 require_model('tarifa.php');
 require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
+require_once dirname(__DIR__) . '/lib/tpvmod_opcionales.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_cliente_ajax.php';
 require_model('direccion_cliente.php');
 
@@ -118,6 +119,10 @@ class tpvmod extends fs_controller
       else if( isset($_REQUEST['referencia4precios']) )
       {
          $this->get_precios_articulo();
+      }
+      else if( isset($_REQUEST['opcionales_articulo']) )
+      {
+         $this->get_opcionales_articulo();
       }
       else
       {
@@ -384,7 +389,13 @@ class tpvmod extends fs_controller
                {
                   if( intval($_POST['numlineas']) > 0 )
                   {
-                     if( isset($_POST['tipo']) )
+                     $obligatorioErrors = tpvmod_validate_obligatorios_post($_POST);
+                     if ($obligatorioErrors !== []) {
+                        foreach ($obligatorioErrors as $msg) {
+                           $this->new_error_msg($msg);
+                        }
+                     }
+                     else if( isset($_POST['tipo']) )
 			{
                             if($_POST['tipo'] == 'presupuesto')
                             {
@@ -586,6 +597,26 @@ class tpvmod extends fs_controller
       $this->articulo = $this->articulo->get($_REQUEST['referencia4precios']);
    }
 
+   private function get_opcionales_articulo()
+   {
+      $this->template = false;
+
+      $referencia = trim((string) filter_input(INPUT_GET, 'opcionales_articulo', FILTER_UNSAFE_RAW));
+      if ($referencia === '') {
+         $referencia = trim((string) filter_input(INPUT_POST, 'opcionales_articulo', FILTER_UNSAFE_RAW));
+      }
+
+      $pvpRaw = filter_input(INPUT_GET, 'pvp', FILTER_UNSAFE_RAW);
+      if ($pvpRaw === null || $pvpRaw === false) {
+         $pvpRaw = filter_input(INPUT_POST, 'pvp', FILTER_UNSAFE_RAW);
+      }
+      $pvp = (float) str_replace(',', '.', (string) ($pvpRaw ?? '0'));
+
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(tpvmod_opcionales_for_articulo($referencia, $pvp));
+      exit;
+   }
+
    public function get_tarifas_articulo($ref)
    {
       $tarlist = array();
@@ -726,7 +757,7 @@ class tpvmod extends fs_controller
 
 					if( $presupuesto->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=presupuesto&id=".$presupuesto->idpresupuesto."'>".ucfirst(FS_PRESUPUESTO)."</a> guardado correctamente.".tpvmod_imprimir_link('presupuesto', $presupuesto->idpresupuesto));
+                  $this->new_message(tpvmod_documento_guardado_message('presupuesto', $presupuesto->idpresupuesto, FS_PRESUPUESTO));
                   $this->new_change(ucfirst(FS_PRESUPUESTO).' a Cliente '.$presupuesto->codigo, $presupuesto->url(), TRUE);
 				  $this->cliente_s = $this->cliente->get($this->clientedefault);//reseteo el cliente
                }
@@ -858,7 +889,7 @@ class tpvmod extends fs_controller
 	       if( $factura->save() )
                {
                   $factura->get_lineas_iva();
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=factura&id=".$factura->idfactura."'>Factura</a> guardada correctamente.".tpvmod_imprimir_link('factura', $factura->idfactura));
+                  $this->new_message(tpvmod_documento_guardado_message('factura', $factura->idfactura, 'Factura', true));
                   $this->new_change('Factura Cliente '.$factura->codigo, $factura->url(), TRUE);
 		  $this->cliente_s = $this->cliente->get($this->clientedefault);
                }
@@ -995,7 +1026,7 @@ class tpvmod extends fs_controller
 
                 if( $pedido->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=pedido&id=".$pedido->idpedido."'>".ucfirst(FS_PEDIDO)."</a> guardado correctamente.".tpvmod_imprimir_link('pedido', $pedido->idpedido));
+                  $this->new_message(tpvmod_documento_guardado_message('pedido', $pedido->idpedido, FS_PEDIDO));
                   $this->new_change(ucfirst(FS_PEDIDO)." a Cliente ".$pedido->codigo, $pedido->url(), TRUE);
                }
                else
@@ -1158,7 +1189,7 @@ class tpvmod extends fs_controller
                }
                else if( $albaran->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=albaran&id=".$albaran->idalbaran."'>".FS_ALBARAN."</a> guardado correctamente.".tpvmod_imprimir_link('albaran', $albaran->idalbaran));
+                  $this->new_message(tpvmod_documento_guardado_message('albaran', $albaran->idalbaran, FS_ALBARAN));
 	          $this->cliente_s = $this->cliente->get($this->clientedefault);
 
 
@@ -1405,7 +1436,7 @@ class tpvmod extends fs_controller
 
                if( $albaran->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=albaran&id=".$albaran->idalbaran."'>".FS_ALBARAN."</a> guardado correctamente.".tpvmod_imprimir_link('albaran', $albaran->idalbaran));
+                  $this->new_message(tpvmod_documento_guardado_message('albaran', $albaran->idalbaran, FS_ALBARAN));
 
 
 
@@ -1634,7 +1665,7 @@ class tpvmod extends fs_controller
 
                if( $pedido->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=pedido&id=".$pedido->idpedido."'>".FS_PEDIDO."</a> guardado correctamente.".tpvmod_imprimir_link('pedido', $pedido->idpedido));
+                  $this->new_message(tpvmod_documento_guardado_message('pedido', $pedido->idpedido, FS_PEDIDO));
 
 
 
@@ -1862,7 +1893,7 @@ class tpvmod extends fs_controller
 
                if( $presupuesto->save() )
                {
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=presupuesto&id=".$presupuesto->idpresupuesto."'>".FS_PRESUPUESTO."</a> guardado correctamente.".tpvmod_imprimir_link('presupuesto', $presupuesto->idpresupuesto));
+                  $this->new_message(tpvmod_documento_guardado_message('presupuesto', $presupuesto->idpresupuesto, FS_PRESUPUESTO));
 
 
 
@@ -2156,7 +2187,7 @@ class tpvmod extends fs_controller
                         $linea->delete();
                     }
                   }*/
-                  $this->new_message("<a href='./index.php?page=tpvmod&edita=factura&id=".$factura->idfactura."'>".FS_FACTURA."</a> guardado correctamente.".tpvmod_imprimir_link('factura', $factura->idfactura));
+                  $this->new_message(tpvmod_documento_guardado_message('factura', $factura->idfactura, FS_FACTURA, true));
 
                   /// actualizamos la caja
                   $this->registrar_venta_en_caja($factura->total);
@@ -2334,6 +2365,25 @@ class tpvmod extends fs_controller
    }
 
    /**
+    * Metadata for optional lines loaded from an existing document (edit screen).
+    *
+    * @return array{opcional_id: int, grupo_id: int, parent_ref: string}
+    */
+   public function opcional_line_meta(string $parentRef, string $descripcion, $pvp = 0.0): array
+   {
+      $resolved = tpvmod_resolve_opcional_line_metadata($parentRef, $descripcion, (float) $pvp);
+      if ($resolved === null) {
+         return [
+            'opcional_id' => 0,
+            'grupo_id' => 0,
+            'parent_ref' => $parentRef,
+         ];
+      }
+
+      return $resolved;
+   }
+
+   /**
     * Loads warehouse, series, currency, payment method and fiscal year for a new/edited document.
     * Uses POST when present; otherwise modular defaults from business_data / catalogo_core
     * (and terminal only when facturacion_base TPV terminal is active).
@@ -2372,6 +2422,9 @@ class tpvmod extends fs_controller
       }
 
       $divisa = $this->tpvmod_cargar_modelo($this->divisa, $codigos['divisa'], 'Divisa', $continuar);
+      if ($divisa) {
+         $this->save_coddivisa($divisa->coddivisa);
+      }
 
       return [
          'almacen' => $almacen,
@@ -2397,6 +2450,16 @@ class tpvmod extends fs_controller
 
       foreach ($model->all() as $item) {
          if (method_exists($item, 'is_default') && $item->is_default()) {
+            return $item;
+         }
+      }
+
+      if ($label === 'Divisa') {
+         $empresaCoddivisa = ($this->empresa && !empty($this->empresa->coddivisa))
+            ? (string) $this->empresa->coddivisa
+            : 'EUR';
+         $item = $model->get($empresaCoddivisa);
+         if ($item) {
             return $item;
          }
       }

@@ -168,6 +168,48 @@ class TpvmodModulesTest extends TestCase
         $this->assertStringContainsString('factura_detallada', $link);
         $this->assertStringContainsString('tipo=albaran', $link);
         $this->assertStringContainsString('id=123', $link);
+        $this->assertStringStartsWith(' o ', $link);
+    }
+
+    public function testVerUrlPointsToTpvmodEditScreen(): void
+    {
+        $this->assertSame(
+            './index.php?page=tpvmod&edita=presupuesto&id=55',
+            tpvmod_ver_url('presupuesto', 55)
+        );
+    }
+
+    public function testDocumentoGuardadoMessageWithVerAndImprimirButtons(): void
+    {
+        $message = tpvmod_documento_guardado_message('presupuesto', 12, 'presupuesto', false, ['factura_pdf1']);
+
+        $this->assertStringContainsString('Presupuesto guardado correctamente.', $message);
+        $this->assertStringContainsString("class='tpvmod-flash-btn tpvmod-flash-btn-view'", $message);
+        $this->assertStringContainsString('page=tpvmod&amp;edita=presupuesto&amp;id=12', $message);
+        $this->assertStringContainsString('>Ver Presupuesto</a>', $message);
+        $this->assertStringContainsString("class='tpvmod-flash-btn tpvmod-flash-btn-print'", $message);
+        $this->assertStringContainsString('page=factura_detallada&amp;tipo=presupuesto&amp;id=12', $message);
+        $this->assertStringContainsString("target='_blank'", $message);
+        $this->assertStringContainsString('>Imprimir</a>', $message);
+        $this->assertStringNotContainsString(' o ', $message);
+    }
+
+    public function testDocumentoGuardadoMessageWithoutPrintModule(): void
+    {
+        $message = tpvmod_documento_guardado_message('presupuesto', 7, 'presupuesto', false, ['tpvmod']);
+
+        $this->assertStringContainsString('Presupuesto guardado correctamente.', $message);
+        $this->assertStringContainsString('Ver Presupuesto', $message);
+        $this->assertStringContainsString('tpvmod-flash-btn-view', $message);
+        $this->assertStringNotContainsString('Imprimir', $message);
+    }
+
+    public function testDocumentoGuardadoMessageUsesFeminineParticiple(): void
+    {
+        $message = tpvmod_documento_guardado_message('factura', 3, 'factura', true, ['factura_pdf1']);
+
+        $this->assertStringContainsString('Factura guardada correctamente.', $message);
+        $this->assertStringContainsString('Ver Factura', $message);
     }
 
     public function testTiposAGuardarEmptyWithoutClientesFacturacion(): void
@@ -233,6 +275,13 @@ class TpvmodModulesTest extends TestCase
         $this->assertSame('T_S', $codigos['serie']);
         $this->assertSame('EUR', $codigos['divisa']);
         $this->assertSame('CONT', $codigos['forma_pago']);
+    }
+
+    public function testResolveDocumentoCodigosFallsBackToEurWithoutEmpresa(): void
+    {
+        $codigos = tpvmod_resolve_documento_codigos([], null, null, null);
+
+        $this->assertSame('EUR', $codigos['divisa']);
     }
 
     public function testResolveDocumentoCodigosDoesNotRequireFacturacionBase(): void

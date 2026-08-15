@@ -9,6 +9,7 @@
  */
 #}
 {% include 'header.html.twig' %}
+<link rel="stylesheet" href="plugins/tpvmod/view/css/tpvmod.css?v={{ fsc.today() }}"/>
 <script type="text/javascript" src="plugins/tpvmod/view/js/tpvmod.js?v={{ fsc.today() }}"></script>
 <script type="text/javascript">
    fs_nf0 = typeof FS_NF0 !== 'undefined' ? FS_NF0 : 2;
@@ -18,6 +19,11 @@
    cliente = {{ json_encode(fsc.cliente_tpv_json())|raw }};
    all_impuestos = {{ json_encode(fsc.impuestos_tpv_json())|raw }};
    all_series = {{ json_encode(fsc.serie.all())|raw }};
+   tpvmod_divisas = {
+      {% for divisa in fsc.divisa.all() %}
+      '{{ divisa.coddivisa|e('js') }}': '{{ divisa.simbolo|e('js') }}'{% if not loop.last %},{% endif %}
+      {% endfor %}
+   };
    if(typeof all_impuestos === 'string') {
       try { all_impuestos = JSON.parse(all_impuestos); } catch(e) { all_impuestos = []; }
    }
@@ -190,24 +196,58 @@
                </thead>
                <tbody id="lineas_albaran">
 
+                  {% set parent_line = 0 %}
+                  {% set parent_uid = '' %}
+                  {% set parent_ref = '' %}
                   {% for linea in fsc.documento.get_lineas() %}
-                     <tr id="linea_{{ loop.index }}">
+                     {% set es_opcional = linea.descripcion starts with 'Opcional: ' %}
+                     {% if not es_opcional %}
+                        {% set parent_line = loop.index %}
+                        {% set parent_uid = 'pl' ~ linea.idlinea %}
+                        {% set parent_ref = linea.referencia %}
+                     {% endif %}
+                     {% if es_opcional %}
+                        {% set opcional_meta = fsc.opcional_line_meta(parent_ref, linea.descripcion, linea.pvpunitario) %}
+                     {% endif %}
+                     <tr id="linea_{{ loop.index }}"{% if es_opcional %} class="tpvmod-line-opcional" data-parent-uid="{{ parent_uid }}" data-opcional-id="{{ opcional_meta.opcional_id }}" data-grupo-id="{{ opcional_meta.grupo_id }}"{% else %} data-line-uid="{{ parent_uid }}" data-product-ref="{{ linea.referencia }}" data-codimpuesto="{{ linea.codimpuesto }}"{% endif %}>
                         <td>
                             <input class="input-sm" type="hidden" name="idlinea_{{ loop.index }}" value="{{ linea.idlinea }}"/>
+                           {% if es_opcional %}
+                           <input class="input-sm" type="hidden" name="referencia_{{ loop.index }}" value=""/>
+                           <input class="input-sm" type="hidden" name="tpvmod_opcional_id_{{ loop.index }}" value="{{ opcional_meta.opcional_id }}"/>
+                           <input class="input-sm" type="hidden" name="tpvmod_opcional_grupo_id_{{ loop.index }}" value="{{ opcional_meta.grupo_id }}"/>
+                           <input class="input-sm" type="hidden" name="tpvmod_parent_ref_{{ loop.index }}" value="{{ opcional_meta.parent_ref }}"/>
+                           {% else %}
                            <input class="input-sm" type="hidden" name="referencia_{{ loop.index }}" value="{{ linea.referencia }}"/>
+                           {% endif %}
+                           {% if es_opcional %}
+                           <div class="form-control input-sm text-muted"><em>Opc.</em></div>
+                           {% else %}
                            <div class="form-control input-sm">
                               <a target="_blank" href="{{ linea.articulo_url()|raw }}">{{ linea.referencia }}</a>
                            </div>
+                           {% endif %}
                         </td>
-                        <td><textarea class="form-control input-sm" name="desc_{{ loop.index }}" rows="1" onclick="this.select()">{{ linea.descripcion }}</textarea></td>
+                        <td><textarea class="form-control input-sm" id="desc_{{ loop.index }}" name="desc_{{ loop.index }}" rows="1" onclick="this.select()">{{ linea.descripcion }}</textarea></td>
                         <td>
                            <input type="number" step="any" id="cantidad_{{ loop.index }}" class="form-control text-right input-sm" name="cantidad_{{ loop.index }}"
                                   value="{{ linea.cantidad }}" onchange="recalcular()" onkeyup="recalcular()" autocomplete="off"/>
                         </td>
                         <td class="tpvmod-line-actions text-nowrap">
+                           {% if es_opcional %}
+                           <span class="btn btn-xs btn-default disabled" title="Opcional vinculado al producto">
+                              <i class="fa fa-link"></i>
+                           </span>
+                           {% else %}
+                           {% if linea.referencia %}
+                           <button class="btn btn-xs btn-info" type="button" title="Añadir opcional" onclick="return tpvmod_show_opcionales_modal('{{ parent_uid }}');">
+                              <i class="fa fa-plus-circle"></i>
+                           </button>
+                           {% endif %}
                            <span class="tpvmod-line-handle btn btn-xs btn-default" title="Arrastrar para reordenar">
                               <i class="fa fa-arrows-v"></i>
                            </span>
+                           {% endif %}
                            <button class="btn btn-xs btn-danger" type="button" onclick="return tpvmod_eliminar_linea('{{ loop.index }}');">
                               <span class="glyphicon glyphicon-trash"></span>
                            </button>
@@ -296,12 +336,13 @@
                   </div>
                </div>
                {% endif %}
+               {% set tpv_divisa = fsc.documento.coddivisa|default(fsc.tpv_defaults.divisa|default(fsc.empresa.coddivisa|default('EUR'))) %}
                <div class="col-sm-3">
                   <div class="form-group">
                      <a href="{{ fsc.divisa.url()|raw }}">Divisa</a>:
                      <select name="divisa" class="form-control input-sm">
                         {% for divisa in fsc.divisa.all() %}
-                           {% if divisa.is_default() %}
+                           {% if divisa.coddivisa == tpv_divisa %}
                            <option value="{{ divisa.coddivisa }}" selected="selected">{{ divisa.descripcion }}</option>
                            {% else %}
                            <option value="{{ divisa.coddivisa }}">{{ divisa.descripcion }}</option>
@@ -420,4 +461,21 @@
    </div>
 </div>
 {% include 'partials/modal_clientes.html.twig' %}
+
+<div class="modal fade" id="modal_opcionales" tabindex="-1" role="dialog">
+   <div class="modal-dialog" role="document">
+      <div class="modal-content">
+         <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title">Añadir opcional</h4>
+         </div>
+         <div class="modal-body" id="tpvmod_opcionales_list">
+            <p class="text-muted">Selecciona un opcional para añadirlo a la línea del producto.</p>
+         </div>
+         <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+         </div>
+      </div>
+   </div>
+</div>
 {% include 'footer.html.twig' %}

@@ -128,4 +128,13 @@ class TpvmodTwigTemplatesTest extends TestCase
             $this->assertStringNotContainsString('fs_session_manager', $content, $relativePath);
         }
     }
+
+    public function testTpvmodJsIncludesUnsavedChangesGuard(): void
+    {
+        $content = file_get_contents($this->pluginDir . '/view/js/tpvmod.js');
+        $this->assertIsString($content);
+        $this->assertStringContainsString('function tpvmod_has_unsaved_changes()', $content);
+        $this->assertStringContainsString('beforeunload.tpvmod', $content);
+        $this->assertStringContainsString('function tpvmod_mark_submitted()', $content);
+    }
 }
