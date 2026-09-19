@@ -37,7 +37,10 @@ final class TpvmodOpcionalesTest extends TestCase
 
     public function testOpcionalesForArticuloReturnsEmptyWithoutCatalogoCore(): void
     {
-        $this->assertSame(['grupos' => [], 'sueltos' => []], tpvmod_opcionales_for_articulo('REF001', 100.0, null, []));
+        $this->assertSame(
+            ['grupos' => [], 'sueltos' => [], 'codfamilia' => ''],
+            tpvmod_opcionales_for_articulo('REF001', 100.0, null, [])
+        );
     }
 
     public function testValidateObligatoriosPostReturnsEmptyWithoutCatalogoCore(): void
@@ -101,5 +104,27 @@ final class TpvmodOpcionalesTest extends TestCase
         $this->assertStringContainsString('tpvmod_normalize_opcionales_payload', $js);
         $this->assertStringContainsString('tpvmod_remove_opcional_in_grupo', $js);
         $this->assertStringContainsString('data-grupo-id', $js);
+    }
+
+    public function testJsIncludesQuickCreateOpcionalWiring(): void
+    {
+        $js = file_get_contents(FS_FOLDER . '/plugins/tpvmod/view/js/tpvmod.js');
+        $this->assertIsString($js);
+
+        foreach ([
+            'tpvmod_build_ad_hoc_opcional',
+            'tpvmod_add_opcional_ad_hoc',
+            'tpvmod_save_opcional_tpv',
+            'guardar_opcional_tpv',
+            'tpvmod_opcional_ad_hoc_',
+            'data-ad-hoc',
+            'codfamilia',
+            'tpvmod_escape_html',
+        ] as $needle) {
+            $this->assertStringContainsString($needle, $js, 'missing JS symbol: ' . $needle);
+        }
+
+        // User text must be escaped as element content, never a single-quoted attribute.
+        $this->assertStringContainsString('tpvmod_escape_html(desc)', $js);
     }
 }

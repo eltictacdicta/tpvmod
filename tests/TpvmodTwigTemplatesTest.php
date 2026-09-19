@@ -57,6 +57,7 @@ class TpvmodTwigTemplatesTest extends TestCase
             'tpvmod_presupuestos.html.twig',
             'parts/modalguardar.html.twig',
             'partials/modal_clientes.html.twig',
+            'partials/modal_opcionales.html.twig',
             'ajax/tpv_recambios.html.twig',
             'ajax/tpv_cambios_precios.html.twig',
             'ajax/tpv_clientes.html.twig',
@@ -136,5 +137,76 @@ class TpvmodTwigTemplatesTest extends TestCase
         $this->assertStringContainsString('function tpvmod_has_unsaved_changes()', $content);
         $this->assertStringContainsString('beforeunload.tpvmod', $content);
         $this->assertStringContainsString('function tpvmod_mark_submitted()', $content);
+    }
+
+    public function testOpcionalesModalIsSharedByBothScreens(): void
+    {
+        $partialPath = $this->viewDir . '/partials/modal_opcionales.html.twig';
+        $this->assertFileExists($partialPath);
+
+        foreach (['tpvmod2.html.twig', 'tpvmodedita.html.twig'] as $view) {
+            $content = file_get_contents($this->viewDir . '/' . $view);
+            $this->assertIsString($content);
+            $this->assertStringContainsString(
+                "{% include 'partials/modal_opcionales.html.twig' %}",
+                $content,
+                $view
+            );
+            $this->assertStringNotContainsString('id="modal_opcionales"', $content, $view);
+        }
+    }
+
+    public function testOpcionalesPartialHasTabsListAndSiblingForm(): void
+    {
+        $content = file_get_contents($this->viewDir . '/partials/modal_opcionales.html.twig');
+        $this->assertIsString($content);
+
+        $this->assertStringContainsString('id="modal_opcionales"', $content);
+        $this->assertStringContainsString('data-toggle="tab"', $content);
+        $this->assertStringContainsString('tab-pane', $content);
+        $this->assertStringContainsString('nav nav-tabs', $content);
+        $this->assertStringContainsString('{{ csrf_field() }}', $content);
+        $this->assertStringContainsString('name="guardar_opcional_tpv"', $content);
+        $this->assertStringContainsString('name="nombre"', $content);
+        $this->assertStringContainsString('name="descripcion"', $content);
+        $this->assertStringContainsString('name="tipo_precio"', $content);
+        $this->assertStringContainsString('name="valor"', $content);
+        $this->assertStringContainsString('id="tpvmod_opcionales_list"', $content);
+        $this->assertStringContainsString('id="tpvmod_opcional_nuevo_form"', $content);
+        $this->assertStringNotContainsString('data-toggle="collapse"', $content);
+        $this->assertStringNotContainsString('|raw', $content);
+
+        $listPos = strpos($content, 'id="tpvmod_opcionales_list"');
+        $formPos = strpos($content, 'id="tpvmod_opcional_nuevo_form"');
+        $this->assertNotFalse($listPos);
+        $this->assertNotFalse($formPos);
+        $this->assertLessThan($formPos, $listPos, 'the form container must be a sibling after the list');
+    }
+
+    public function testEveryPostFormCarriesCsrfField(): void
+    {
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->viewDir, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        $checked = 0;
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || !str_ends_with($file->getFilename(), '.twig')) {
+                continue;
+            }
+
+            $path = $file->getPathname();
+            $content = (string) file_get_contents($path);
+            if (!str_contains($content, 'method="post"')) {
+                continue;
+            }
+
+            $checked++;
+            $this->assertStringContainsString('{{ csrf_field() }}', $content, $path);
+            $this->assertStringNotContainsString('{$fsc->csrf_field', $content, $path);
+            $this->assertStringNotContainsString('csrf_field|raw', $content, $path);
+        }
+
+        $this->assertGreaterThan(0, $checked, 'at least one POST form must be checked');
     }
 }

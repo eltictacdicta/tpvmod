@@ -44,6 +44,134 @@ function tpvmod_format_opcional_line_description(string $texto): string
 }
 
 /**
+ * Whether a submitted line carries the ad-hoc opcional marker.
+ *
+ * Quick-create ad-hoc rows submit `tpvmod_opcional_ad_hoc_N=1`; the marker
+ * keeps the line inert for obligatorios/groups on the server (OD-6/F2).
+ *
+ * @param array<string, mixed> $post
+ */
+function tpvmod_opcional_is_ad_hoc_post(array $post, int $n): bool
+{
+    $value = $post['tpvmod_opcional_ad_hoc_' . $n] ?? null;
+    if ($value === null) {
+        return false;
+    }
+
+    $value = (string) $value;
+
+    return $value !== '' && $value !== '0';
+}
+
+/**
+ * Normalize the quick-create form input into catalog opcional fields.
+ *
+ * Pure contract (OD-5): the resulting data is always ungrouped and active.
+ * Model-side sanitization (`no_html()`) is verified at the catalog model
+ * boundary, not here.
+ *
+ * @param array<string, mixed> $post
+ * @return array{ok: bool, errors: list<string>, data: ?array<string, mixed>}
+ */
+function tpvmod_normalize_opcional_input(array $post): array
+{
+    $errors = [];
+    $nombre = trim((string) ($post['nombre'] ?? ''));
+    $descripcion = trim((string) ($post['descripcion'] ?? ''));
+
+    if ($nombre === '') {
+        $errors[] = 'El nombre del opcional es obligatorio.';
+    } elseif (mb_strlen($nombre) > 100) {
+        $errors[] = 'El nombre del opcional no puede superar los 100 caracteres.';
+    }
+
+    $valorRaw = str_replace(',', '.', trim((string) ($post['valor'] ?? '')));
+    if ($valorRaw === '' || !is_numeric($valorRaw) || (float) $valorRaw < 0) {
+        $errors[] = 'El valor del opcional no es válido.';
+    }
+
+    $tipo = ((string) ($post['tipo_precio'] ?? '')) === 'porcentaje' ? 'porcentaje' : 'fijo';
+
+    if ($errors !== []) {
+        return ['ok' => false, 'errors' => $errors, 'data' => null];
+    }
+
+    $valor = (float) $valorRaw;
+
+    return [
+        'ok' => true,
+        'errors' => [],
+        'data' => [
+            'nombre' => $nombre,
+            'descripcion' => $descripcion,
+            'tipo_precio' => $tipo,
+            'precio' => $tipo === 'porcentaje' ? 0.0 : $valor,
+            'porcentaje' => $tipo === 'porcentaje' ? $valor : null,
+            'activo' => true,
+            'id_grupo' => null,
+        ],
+    ];
+}
+
+/**
+ * Build a session-only (ad-hoc) opcional from composed form input.
+ *
+ * `porcentaje` resolves over the parent line PVP at insert time (OD-2); the
+ * computed price is frozen afterwards. Invalid input yields `{ok:false}`.
+ *
+ * @param array<string, mixed> $input
+ * @return array{ok: bool, errors: list<string>, opcional: ?array<string, mixed>}
+ */
+function tpvmod_build_ad_hoc_opcional(array $input, float $pvpBase): array
+{
+    $normalized = tpvmod_normalize_opcional_input($input);
+    if (!$normalized['ok']) {
+        return ['ok' => false, 'errors' => $normalized['errors'], 'opcional' => null];
+    }
+
+    $data = $normalized['data'];
+    $precio = $data['tipo_precio'] === 'porcentaje'
+        ? bround($pvpBase * ((float) $data['porcentaje'] / 100))
+        : (float) $data['precio'];
+
+    return [
+        'ok' => true,
+        'errors' => [],
+        'opcional' => [
+            'id' => null,
+            'nombre' => $data['nombre'],
+            'descripcion' => $data['descripcion'] !== '' ? $data['descripcion'] : $data['nombre'],
+            'precio' => $precio,
+            'tipo_precio' => $data['tipo_precio'],
+            'porcentaje' => $data['porcentaje'],
+            'grupo_id' => null,
+            'ad_hoc' => true,
+        ],
+    ];
+}
+
+/**
+ * Resolve `articulo->codfamilia` for a reference (authoritative server read).
+ */
+function tpvmod_articulo_codfamilia(string $referencia): string
+{
+    $referencia = trim($referencia);
+    if ($referencia === '' || !tpvmod_has_catalogo_core()) {
+        return '';
+    }
+
+    require_once FS_FOLDER . '/plugins/catalogo_core/model/core/articulo.php';
+
+    $articulo = new \FSFramework\model\articulo();
+    $art = $articulo->get($referencia);
+    if (!$art) {
+        return '';
+    }
+
+    return trim((string) $art->codfamilia);
+}
+
+/**
  * Whether catalogo_core is active and opcionales can be resolved.
  */
 function tpvmod_has_catalogo_core(?array $plugins = null): bool
@@ -106,13 +234,14 @@ function tpvmod_build_opcional_item(object $opcional, float $pvpArticulo, string
  *
  * @return array{
  *   grupos: list<array{id: int, nombre: string, exclusivo: bool, obligatorio: bool, opcionales: list<array<string, mixed>>}>,
- *   sueltos: list<array<string, mixed>>
+ *   sueltos: list<array<string, mixed>>,
+ *   codfamilia: string
  * }
  */
 function tpvmod_opcionales_for_articulo(string $referencia, float $pvpArticulo, ?string $codlista = null, ?array $plugins = null): array
 {
     if (!tpvmod_has_catalogo_core($plugins) || trim($referencia) === '') {
-        return ['grupos' => [], 'sueltos' => []];
+        return ['grupos' => [], 'sueltos' => [], 'codfamilia' => ''];
     }
 
     require_once FS_FOLDER . '/plugins/catalogo_core/model/core/catalogo_articulo_opcional.php';
@@ -169,6 +298,7 @@ function tpvmod_opcionales_for_articulo(string $referencia, float $pvpArticulo, 
     return [
         'grupos' => array_values($grupos),
         'sueltos' => $sueltos,
+        'codfamilia' => tpvmod_articulo_codfamilia($referencia),
     ];
 }
 
@@ -308,6 +438,12 @@ function tpvmod_validate_obligatorios_post(array $post): array
 
         $desc = (string) ($post['desc_' . $i] ?? '');
         if (!tpvmod_is_opcional_line_description($desc)) {
+            continue;
+        }
+
+        /// Ad-hoc quick-create lines are inert: skip description resolution
+        /// and obligation counting even when the text matches a catalog opcional.
+        if (tpvmod_opcional_is_ad_hoc_post($post, $i)) {
             continue;
         }
 

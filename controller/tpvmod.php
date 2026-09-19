@@ -37,6 +37,7 @@ require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_opcionales.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_cliente_ajax.php';
+require_once dirname(__DIR__) . '/lib/tpvmod_opcionales_ajax.php';
 require_model('direccion_cliente.php');
 
 class tpvmod extends fs_controller
@@ -106,6 +107,9 @@ class tpvmod extends fs_controller
       $this->terminal_mode = tpvmod_terminal_mode_effective($candidate0);
 
       if (tpvmod_cliente_ajax_dispatch($this)) {
+         return;
+      }
+      if (tpvmod_opcionales_ajax_dispatch($this)) {
          return;
       }
       else if( isset($_REQUEST['datoscliente']) )

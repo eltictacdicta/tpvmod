@@ -251,13 +251,19 @@ function tpvmod_add_opcional_linea(parentUid, opcional, cantidad, codimpuesto, i
    );
    var pvp = opcional.precio;
    var grupoId = opcional.grupo_id ? String(opcional.grupo_id) : '';
+   var adHoc = !!opcional.ad_hoc;
+   var adHocAttr = adHoc ? ' data-ad-hoc="1"' : '';
+   var adHocMarker = adHoc
+      ? '<input type=\"hidden\" name=\"tpvmod_opcional_ad_hoc_'+numlineas+'\" value=\"1\"/>\n\
+            '
+      : '';
 
-   var lineHtml = "<tr id=\"linea_"+numlineas+"\" class=\"tpvmod-line-opcional\" data-parent-uid=\""+parentUid+"\" data-opcional-id=\""+(opcional.id || '')+"\" data-grupo-id=\""+grupoId+"\">\n\
+   var lineHtml = "<tr id=\"linea_"+numlineas+"\" class=\"tpvmod-line-opcional\" data-parent-uid=\""+parentUid+"\" data-opcional-id=\""+(opcional.id || '')+"\" data-grupo-id=\""+grupoId+"\""+adHocAttr+">\n\
          <td><input type=\"hidden\" name=\"referencia_"+numlineas+"\" value=\"\"/>\n\
             <input type=\"hidden\" name=\"idlinea_"+numlineas+"\" value=\"-1\"/>\n\
             <input type=\"hidden\" name=\"tpvmod_opcional_id_"+numlineas+"\" value=\""+(opcional.id || '')+"\"/>\n\
             <input type=\"hidden\" name=\"tpvmod_opcional_grupo_id_"+numlineas+"\" value=\""+grupoId+"\"/>\n\
-            <input type=\"hidden\" name=\"tpvmod_parent_ref_"+numlineas+"\" value=\""+tpvmod_escape_html(ctx.ref)+"\"/>\n\
+            "+adHocMarker+"<input type=\"hidden\" name=\"tpvmod_parent_ref_"+numlineas+"\" value=\""+tpvmod_escape_html(ctx.ref)+"\"/>\n\
             <input type=\"hidden\" id=\"iva_"+numlineas+"\" name=\"iva_"+numlineas+"\" value=\""+iva+"\"/>\n\
             <input type=\"hidden\" id=\"recargo_"+numlineas+"\" name=\"recargo_"+numlineas+"\" value=\""+recargo+"\"/>\n\
             <input type=\"hidden\" id=\"irpf_"+numlineas+"\" name=\"irpf_"+numlineas+"\" value=\""+irpf+"\"/>\n\
@@ -300,12 +306,13 @@ function tpvmod_normalize_opcionales_payload(data)
 
    if(Array.isArray(data))
    {
-      return {grupos: [], sueltos: data};
+      return {grupos: [], sueltos: data, codfamilia: ''};
    }
 
    return {
       grupos: data.grupos || [],
-      sueltos: data.sueltos || []
+      sueltos: data.sueltos || [],
+      codfamilia: data.codfamilia || ''
    };
 }
 
@@ -553,6 +560,7 @@ function tpvmod_get_parent_line_context_by_uid(parentUid)
 function tpvmod_render_opcionales_modal(payload, parentUid)
 {
    payload = tpvmod_normalize_opcionales_payload(payload);
+   tpvmod_update_asociacion_control(payload.codfamilia);
    var added = tpvmod_get_added_opcional_ids(parentUid);
    var html = '';
    var available = 0;
@@ -696,6 +704,213 @@ function tpvmod_pick_opcional(parentUid, opcionalId)
    tpvmod_init_lineas_sortable();
    tpvmod_render_opcionales_modal(tpvmod_opcionales_modal_data, parentUid);
    tpvmod_refresh_obligatorio_warnings();
+}
+
+// ---------------------------------------------------------------------------
+// Quick-create opcional (ad-hoc line + save-and-associate)
+// ---------------------------------------------------------------------------
+
+function tpvmod_read_opcional_nuevo_form()
+{
+   return {
+      nombre: $.trim($('#f_opcional_nuevo input[name="nombre"]').val() || ''),
+      descripcion: $.trim($('#f_opcional_nuevo input[name="descripcion"]').val() || ''),
+      tipo_precio: $('#f_opcional_nuevo select[name="tipo_precio"]').val() || 'fijo',
+      valor: $.trim($('#f_opcional_nuevo input[name="valor"]').val() || '')
+   };
+}
+
+function tpvmod_reset_opcional_nuevo_form()
+{
+   var $form = $('#f_opcional_nuevo');
+   if(!$form.length)
+      return;
+
+   $form.find('input[name="nombre"], input[name="descripcion"], input[name="valor"]').val('');
+   $form.find('select[name="tipo_precio"]').val('fijo');
+}
+
+/**
+ * JS mirror of the PHP ad-hoc builder: validates the composed input and
+ * computes the price (OD-2) without a round-trip.
+ */
+function tpvmod_build_ad_hoc_opcional(input, pvpBase)
+{
+   var errors = [];
+   var nombre = $.trim(String((input && input.nombre) || ''));
+   var descripcion = $.trim(String((input && input.descripcion) || ''));
+   var tipo = ((input && input.tipo_precio) === 'porcentaje') ? 'porcentaje' : 'fijo';
+   var valorRaw = String((input && input.valor) || '').replace(',', '.');
+   var valor = parseFloat(valorRaw);
+
+   if(nombre === '')
+      errors.push('El nombre del opcional es obligatorio.');
+   if(valorRaw === '' || isNaN(valor) || valor < 0)
+      errors.push('El valor del opcional no es válido.');
+
+   if(errors.length > 0)
+      return {ok: false, errors: errors, opcional: null};
+
+   var nf0 = (typeof FS_NF0 !== 'undefined' ? FS_NF0 : fs_nf0);
+   var factor = Math.pow(10, nf0);
+   var precio = tipo === 'porcentaje'
+      ? Math.round((valor * pvpBase / 100) * factor) / factor
+      : valor;
+
+   return {
+      ok: true,
+      errors: [],
+      opcional: {
+         id: null,
+         nombre: nombre,
+         descripcion: descripcion !== '' ? descripcion : nombre,
+         precio: precio,
+         tipo_precio: tipo,
+         porcentaje: tipo === 'porcentaje' ? valor : null,
+         grupo_id: null,
+         ad_hoc: true
+      }
+   };
+}
+
+/**
+ * Hide/disable the Familia target when the product has no codfamilia (OD-3).
+ */
+function tpvmod_update_asociacion_control(codfamilia)
+{
+   var hasFamilia = $.trim(String(codfamilia || '')) !== '';
+   var $select = $('#f_opcional_nuevo select[name="asociacion"]');
+   if(!$select.length)
+      return;
+
+   var $familia = $select.find('option[value="familia"]');
+   $familia.prop('disabled', !hasFamilia);
+   $familia.toggle(hasFamilia);
+
+   if(!hasFamilia)
+      $select.val('producto');
+}
+
+function tpvmod_add_opcional_ad_hoc(parentUid)
+{
+   var ctx = tpvmod_get_parent_line_context_by_uid(parentUid);
+   if(!ctx)
+   {
+      alert('Solo puedes añadir opcionales a líneas de producto.');
+      return false;
+   }
+
+   var built = tpvmod_build_ad_hoc_opcional(tpvmod_read_opcional_nuevo_form(), ctx.pvp);
+   if(!built.ok)
+   {
+      alert(built.errors.join('\n'));
+      return false;
+   }
+
+   tpvmod_add_opcional_linea(parentUid, built.opcional, ctx.cantidad, ctx.codimpuesto, ctx.ivaArticulo);
+   tpvmod_reorder_opcionales();
+   tpvmod_renumber_lineas();
+   recalcular();
+   tpvmod_init_lineas_sortable();
+   tpvmod_refresh_obligatorio_warnings();
+   tpvmod_reset_opcional_nuevo_form();
+
+   return false;
+}
+
+function tpvmod_save_opcional_tpv(parentUid)
+{
+   var ctx = tpvmod_get_parent_line_context_by_uid(parentUid);
+   if(!ctx || !ctx.ref)
+   {
+      alert('Solo puedes añadir opcionales a líneas de producto.');
+      return false;
+   }
+
+   var input = tpvmod_read_opcional_nuevo_form();
+   var built = tpvmod_build_ad_hoc_opcional(input, ctx.pvp);
+   if(!built.ok)
+   {
+      alert(built.errors.join('\n'));
+      return false;
+   }
+
+   var $select = $('#f_opcional_nuevo select[name="asociacion"]');
+   var target = $select.length ? ($select.val() || 'producto') : 'producto';
+   var hasCodfamilia = $.trim(String(tpvmod_opcionales_modal_data.codfamilia || '')) !== '';
+   if(!hasCodfamilia)
+      target = 'producto';
+
+   var data = {
+      guardar_opcional_tpv: '1',
+      referencia: ctx.ref,
+      nombre: input.nombre,
+      descripcion: input.descripcion,
+      tipo_precio: input.tipo_precio,
+      valor: input.valor,
+      asociacion: target
+   };
+
+   var csrf = tpvmodCsrfToken();
+   if(csrf)
+      data._csrf_token = csrf;
+
+   $.ajax({
+      type: 'POST',
+      url: tpv_url,
+      dataType: 'json',
+      data: data,
+      success: function(response) {
+         if(!response || !response.ok)
+         {
+            var errors = (response && response.errors) ? response.errors : ['No se pudo guardar el opcional.'];
+            alert(errors.join('\n'));
+            return;
+         }
+
+         tpvmod_reset_opcional_nuevo_form();
+         tpvmod_refresh_opcionales_after_save(ctx, parentUid, response.opcional || null);
+      },
+      error: function() {
+         alert('No se pudo guardar el opcional.');
+      }
+   });
+
+   return false;
+}
+
+function tpvmod_refresh_opcionales_after_save(ctx, parentUid, opcional)
+{
+   var cacheKey = ctx.ref+'|'+ctx.pvp;
+   delete tpvmod_opcionales_cache[cacheKey];
+
+   if(opcional)
+   {
+      tpvmod_add_opcional_linea(parentUid, {
+         id: opcional.id,
+         codigo: opcional.codigo,
+         descripcion: opcional.descripcion || opcional.nombre || '',
+         precio: opcional.precio,
+         grupo_id: opcional.grupo_id || null,
+         grupo_nombre: '',
+         grupo_exclusivo: false
+      }, ctx.cantidad, ctx.codimpuesto, ctx.ivaArticulo);
+      tpvmod_reorder_opcionales();
+      tpvmod_renumber_lineas();
+      recalcular();
+      tpvmod_init_lineas_sortable();
+   }
+
+   $.getJSON(tpv_url, {
+      opcionales_articulo: ctx.ref,
+      pvp: ctx.pvp
+   }, function(opcionales) {
+      tpvmod_opcionales_cache[cacheKey] = tpvmod_normalize_opcionales_payload(opcionales);
+      tpvmod_opcionales_modal_data = tpvmod_opcionales_cache[cacheKey];
+      tpvmod_store_obligatorios_requirements(ctx.ref, tpvmod_opcionales_modal_data);
+      tpvmod_render_opcionales_modal(tpvmod_opcionales_modal_data, parentUid);
+      tpvmod_refresh_obligatorio_warnings();
+   });
 }
 
 function tpvmod_with_cliente_sync(callback)

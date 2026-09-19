@@ -462,20 +462,5 @@
 </div>
 {% include 'partials/modal_clientes.html.twig' %}
 
-<div class="modal fade" id="modal_opcionales" tabindex="-1" role="dialog">
-   <div class="modal-dialog" role="document">
-      <div class="modal-content">
-         <div class="modal-header">
-            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-            <h4 class="modal-title">Añadir opcional</h4>
-         </div>
-         <div class="modal-body" id="tpvmod_opcionales_list">
-            <p class="text-muted">Selecciona un opcional para añadirlo a la línea del producto.</p>
-         </div>
-         <div class="modal-footer">
-            <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
-         </div>
-      </div>
-   </div>
-</div>
+{% include 'partials/modal_opcionales.html.twig' %}
 {% include 'footer.html.twig' %}

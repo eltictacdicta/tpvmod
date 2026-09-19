@@ -1,0 +1,98 @@
+{#
+/**
+ * Plugin: tpvmod
+ * Shared "Añadir opcional" modal: existing catalog selection plus an inline
+ * quick-create form. Included by tpvmod2 and tpvmodedita so the flow cannot
+ * drift. The quick-create form lives in a sibling tab pane of the list render
+ * target, so re-rendering #tpvmod_opcionales_list never destroys it.
+ */
+#}
+<div class="modal fade" id="modal_opcionales" tabindex="-1" role="dialog">
+   <div class="modal-dialog" role="document">
+      <div class="modal-content">
+         <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title">Añadir opcional</h4>
+         </div>
+         <div class="modal-body">
+            <ul class="nav nav-tabs" role="tablist">
+               <li class="active"><a href="#tpvmod_opcionales_existentes" role="tab" data-toggle="tab">Opcionales existentes</a></li>
+               <li><a href="#tpvmod_opcional_nuevo" role="tab" data-toggle="tab">Nuevo opcional</a></li>
+            </ul>
+
+            <div class="tab-content" style="padding-top: 15px;">
+               <div class="tab-pane active" id="tpvmod_opcionales_existentes">
+                  <div id="tpvmod_opcionales_list">
+                     <p class="text-muted">Selecciona un opcional para añadirlo a la línea del producto.</p>
+                  </div>
+               </div>
+
+               <div class="tab-pane" id="tpvmod_opcional_nuevo">
+                  <div id="tpvmod_opcional_nuevo_form">
+                     <form id="f_opcional_nuevo" method="post" onsubmit="return false;">
+                        {{ csrf_field() }}
+                        <input type="hidden" name="guardar_opcional_tpv" value="1"/>
+
+                        <div class="row">
+                           <div class="col-sm-6">
+                              <div class="form-group">
+                                 <label>Nombre *</label>
+                                 <input type="text" class="form-control input-sm" name="nombre" maxlength="100" required/>
+                              </div>
+                           </div>
+                           <div class="col-sm-6">
+                              <div class="form-group">
+                                 <label>Descripción</label>
+                                 <input type="text" class="form-control input-sm" name="descripcion" maxlength="200"/>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div class="row">
+                           <div class="col-sm-4">
+                              <div class="form-group">
+                                 <label>Tipo de precio</label>
+                                 <select class="form-control input-sm" name="tipo_precio">
+                                    <option value="fijo">Precio fijo</option>
+                                    <option value="porcentaje">Porcentaje del PVP</option>
+                                 </select>
+                              </div>
+                           </div>
+                           <div class="col-sm-4">
+                              <div class="form-group">
+                                 <label>Valor</label>
+                                 <input type="number" step="any" min="0" class="form-control input-sm" name="valor" required/>
+                              </div>
+                           </div>
+                           <div class="col-sm-4">
+                              <div class="form-group" id="tpvmod_opcional_asociacion_wrap">
+                                 <label>Asociar a</label>
+                                 <select class="form-control input-sm" name="asociacion">
+                                    <option value="producto">Producto</option>
+                                    <option value="familia">Familia</option>
+                                 </select>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div class="text-right">
+                           <button type="button" class="btn btn-default"
+                              onclick="return tpvmod_add_opcional_ad_hoc($('#modal_opcionales').data('parent-uid'));">
+                              Añadir
+                           </button>
+                           <button type="button" class="btn btn-success"
+                              onclick="return tpvmod_save_opcional_tpv($('#modal_opcionales').data('parent-uid'));">
+                              Añadir y guardar opcional
+                           </button>
+                        </div>
+                     </form>
+                  </div>
+               </div>
+            </div>
+         </div>
+         <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+         </div>
+      </div>
+   </div>
+</div>
