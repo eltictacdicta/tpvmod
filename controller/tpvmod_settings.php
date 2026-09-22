@@ -23,16 +23,25 @@ require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_sede_mapping.php';
 
 /**
- * Admin-only controller for the tpvmod global toggle
- * `tpvmod_terminal_mode` (with_terminal | without_terminal).
+ * Settings controller for the tpvmod global toggle
+ * `tpvmod_terminal_mode` (with_terminal | without_terminal) and for the
+ * empresa sede -> document-type mapping.
  *
- * The page is admin-gated via the constructor's `folder='admin'` arg
- * (matches the pattern used by business_data/admin_empresa.php and
- * system_updater/admin_updater.php). Non-admin users have no
- * `fs_rol_access` row pointing to this page, so fs_user::get_menu()
- * excludes it and have_access_to() returns false; fs_controller then
- * routes them to the access_denied template.
+ * This page is administrator-only. The effective declaration is the
+ * class-level `#[AdminOnly]` attribute below
+ * (`FSFramework\Attribute\AdminOnly`), resolved by
+ * `fs_page::is_admin_only_class()` through the attribute *name string* —
+ * which is why it works on this legacy, non-namespaced controller. That
+ * resolution is propagated to `fs_pages.admin_only` so the role listings
+ * hide the page and `fs_rol_access::save()` refuses to grant it, and
+ * `fs_controller::isAccessAllowed()` denies it to any non-administrator
+ * regardless of a stale role row.
+ *
+ * The 4th constructor argument (`$admin`) is obsolete and ignored by
+ * `fs_controller::__construct()`; passing TRUE there never gated access.
+ * The `folder='admin'` argument only places the link in the admin menu.
  */
+#[\FSFramework\Attribute\AdminOnly]
 class tpvmod_settings extends fs_controller
 {
    /**
@@ -56,7 +65,9 @@ class tpvmod_settings extends fs_controller
 
    public function __construct()
    {
-      // require_admin=TRUE, only_admin=TRUE: blocks non-admins at the framework level.
+      // The 4th argument ($admin) is obsolete and ignored by
+      // fs_controller::__construct(); administrator-only access is declared by
+      // the #[AdminOnly] class attribute above, not by this call.
       parent::__construct(__CLASS__, 'TPVMOD settings', 'admin', TRUE, TRUE);
    }
 
@@ -114,8 +125,9 @@ class tpvmod_settings extends fs_controller
    }
 
    /**
-    * Persists the sede mapping, with its own CSRF check. The mapping form is
-    * admin-gated by the constructor and CSRF-gated here.
+    * Persists the sede mapping, with its own CSRF check. The page is
+    * administrator-only via the class-level #[AdminOnly] attribute, and this
+    * path is CSRF-gated again here.
     *
     * @param array<string, mixed> $post
     */
