@@ -20,6 +20,7 @@
 require_once dirname(__DIR__, 3) . '/base/fs_controller.php';
 require_once dirname(__DIR__, 3) . '/base/fs_settings.php';
 require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
+require_once dirname(__DIR__) . '/lib/tpvmod_sede_mapping.php';
 
 /**
  * Admin-only controller for the tpvmod global toggle
@@ -34,8 +35,24 @@ require_once dirname(__DIR__) . '/lib/tpvmod_modules.php';
  */
 class tpvmod_settings extends fs_controller
 {
+   /**
+    * POST marker owned by the sede-mapping form. It must match the hidden
+    * field rendered in view/tpvmod_settings.html.twig so a mapping POST is
+    * never mistaken for a terminal-mode POST.
+    */
+   private const SEDE_MAPPING_POST_MARKER = 'save_sede_mapping';
+
    public $terminal_mode;
    public $terminal_settings_available;
+
+   /** @var array<int, object> Sedes available for the mapping selectors. */
+   public $sedes = [];
+
+   /** @var array<string, ?string> tipo => ?codsede, from empresa_sede::mapping(). */
+   public $sede_mapping = [];
+
+   /** Whether business_data's empresa_sede model could be loaded. */
+   public $sede_mapping_available = FALSE;
 
    public function __construct()
    {
@@ -50,9 +67,20 @@ class tpvmod_settings extends fs_controller
       $this->terminal_mode = tpvmod_terminal_mode_effective(
          (string) $settings->get('tpvmod_terminal_mode', 'with_terminal')
       );
+      $this->loadSedeMapping();
 
       if ($_SERVER['REQUEST_METHOD'] === 'POST')
       {
+         $post = is_array($_POST) ? $_POST : [];
+
+         // The mapping form has its own marker and is NOT gated by the
+         // terminal settings (which depend on facturacion_base).
+         if (tpvmod_sede_mapping_submitted($post, self::SEDE_MAPPING_POST_MARKER))
+         {
+            $this->saveSedeMapping($post);
+            return;
+         }
+
          if (!$this->terminal_settings_available)
          {
             $this->new_error_msg('La configuración de terminal requiere el plugin facturacion_base activo.');
@@ -83,5 +111,80 @@ class tpvmod_settings extends fs_controller
             $this->new_error_msg('No se pudo guardar la configuración.');
          }
       }
+   }
+
+   /**
+    * Persists the sede mapping, with its own CSRF check. The mapping form is
+    * admin-gated by the constructor and CSRF-gated here.
+    *
+    * @param array<string, mixed> $post
+    */
+   private function saveSedeMapping(array $post)
+   {
+      if (!$this->isCsrfValid())
+      {
+         $this->new_error_msg('Token de seguridad inválido.');
+         return;
+      }
+
+      $result = tpvmod_save_sede_mapping($post);
+
+      foreach ($result['errors'] as $error)
+      {
+         $this->new_error_msg($error);
+      }
+
+      if ($result['ok'])
+      {
+         $this->sede_mapping = empresa_sede::mapping();
+         $this->new_message('Mapeo de sedes guardado.');
+      }
+   }
+
+   /**
+    * Loads the sedes and the current mapping when business_data's empresa_sede
+    * model is available. When it is not, the page renders an informative note
+    * instead of failing.
+    */
+   private function loadSedeMapping()
+   {
+      $this->sede_mapping_available = $this->requireEmpresaSedeModel();
+      if (!$this->sede_mapping_available)
+      {
+         return;
+      }
+
+      $this->sede_mapping = empresa_sede::mapping();
+
+      $sede = new empresa_sede();
+      $this->sedes = $sede->all();
+   }
+
+   /**
+    * Loads the business_data `empresa_sede` model by path.
+    *
+    * The framework model autoloader does not resolve plugin models outside the
+    * app bootstrap (`fs_model_autoloader::register()` snapshots
+    * `$GLOBALS['plugins']`), so an explicit, guarded `require_once` by path is
+    * the convention already used by factura_pdf1 for `empresa`/`forma_pago`.
+    *
+    * @return bool TRUE when the class is usable.
+    */
+   private function requireEmpresaSedeModel(): bool
+   {
+      if (class_exists('empresa_sede', FALSE))
+      {
+         return TRUE;
+      }
+
+      $path = dirname(__DIR__, 3) . '/plugins/business_data/model/empresa_sede.php';
+      if (!is_file($path))
+      {
+         return FALSE;
+      }
+
+      require_once $path;
+
+      return class_exists('empresa_sede', FALSE);
    }
 }
