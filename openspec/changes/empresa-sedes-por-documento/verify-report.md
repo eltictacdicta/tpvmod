@@ -416,3 +416,73 @@ grep -rn "RelatedModelsLoader::load(" plugins/factura_pdf1/Model/View/*.php
 grep -rln "empresa_sede\|RelatedModelsLoader" plugins/OidcProvider/
 git -C plugins/{business_data,factura_pdf1,tpvmod} status --short
 ```
+
+---
+
+## Follow-up corrections
+
+**Date:** 2026-09-22
+**Context:** the two WARNING findings the human decided on after this report, plus
+the W3 documentary error. This section is appended; the original findings above
+are unchanged and were accurate when written.
+
+### W1 — administrator-only enforcement
+
+**Resolution.** `tpvmod_settings` now declares the class-level
+`#[\FSFramework\Attribute\AdminOnly]` attribute
+(`controller/tpvmod_settings.php`). That is the framework's real mechanism:
+`fs_page::is_admin_only_class()` resolves it by attribute name string — which
+works on the legacy, non-namespaced controller — and the value propagates to
+`fs_pages.admin_only` and `fs_controller::isAccessAllowed()`. The false docblock
+claim that `folder='admin'` gated the page is gone; the docblock now states that
+the obsolete 4th `$admin` constructor argument is ignored and never gated access.
+
+**Deliberately not changed.** `admin_empresa` stays role-gated. The core
+admin-only allowlist does not include it, so declaring it admin-only would revoke
+existing role-based access — a confirmed-behaviour change the human explicitly
+decided against.
+
+**Evidence.** tpvmod commit `6a96c66`; new test
+`plugins/tpvmod/tests/TpvmodSettingsAdminOnlyTest.php` (3 tests):
+`testSettingsControllerResolvesAsAdminOnly`,
+`testSettingsControllerDeclaresTheAdminOnlyAttribute`,
+`testDocblockDescribesTheAttributeNotTheObsoleteFolderArgument`.
+
+### W2 — explicit CSRF on the sede mutation handlers
+
+**Resolution.** `handleSaveSede()` and `handleDeleteSede()` now reject an invalid
+token explicitly with an `isCsrfValid()` guard *before* any repository access or
+write (`controller/admin_empresa.php`). This closes the `FS_CSRF_SOFT=true`
+window where the page gate alone returned TRUE for an invalid token.
+
+**Delete trigger decision.** `delete_sede` is triggered by a submit button inside
+the per-sede POST form that carries `{{ csrf_field() }}`
+(`view/block/admin_empresa_sedes.html.twig`), so the handler can genuinely reject
+an invalid token; no trigger conversion was needed. This differs from the
+pre-existing `delete_cuenta`, which is a GET link with no token — that asymmetry
+is left untouched and is pinned by
+`testExistingDispatchBranchesAreUnchangedIncludingTheDeleteCuentaAsymmetry`.
+
+**Evidence.** business_data commit `2f66f9c1`; new test
+`plugins/business_data/tests/AdminEmpresaSedeCsrfTest.php` (3 tests):
+`testDeleteSedeRejectsAnInvalidCsrfTokenWithoutTouchingAnyRow`,
+`testSedeHandlersCheckCsrfBeforeTouchingTheSedeRepository`,
+`testDeleteTriggerIsACsrfProtectedPostForm`.
+
+### W3 — documentary error
+
+`apply-progress.md` no longer declares `lib/tpvmod_sede_mapping.php` a design
+deviation; it records that the design specifies the file (AD-14, File Changes
+table, interfaces block) and that the only WU-3 deviation is the optional second
+parameter of `tpvmod_sede_mapping_submitted()`.
+
+### Suite totals after the corrections
+
+| Command | Before | After |
+|---|---|---|
+| `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` | `OK (126 tests, 554 assertions)` | `OK (129 tests, 562 assertions)` |
+| `ddev exec php vendor/bin/phpunit -c phpunit.xml plugins/business_data/tests/` | `OK (47 tests, 471 assertions)` | `OK (50 tests, 491 assertions)` |
+| `ddev exec php vendor/bin/phpunit --testsuite Plugins --filter EmpresaSede` | `OK (36 tests, 354 assertions)` | `OK (39 tests, 374 assertions)` |
+
+`model/cuenta_banco.php` in `plugins/business_data` remains modified-and-unstaged,
+untouched and not part of either follow-up commit.

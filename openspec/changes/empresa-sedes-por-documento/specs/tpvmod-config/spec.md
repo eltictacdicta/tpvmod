@@ -15,8 +15,13 @@ The `tpvmod_settings` page MUST render a mapping section with four selectors —
 sedes plus an explicit "no override / base company" option. Submitting the
 form MUST persist each selection through
 `empresa_sede::setMappingFor(string $tipo, ?string $codsede): bool`. The
-section MUST be admin-only and CSRF-gated, and MUST escape every rendered
-label.
+page MUST be administrator-only, declared by the class-level `#[AdminOnly]`
+attribute on the controller and resolved by `fs_page::is_admin_only_class()`
+through the attribute name string (propagated to `fs_pages.admin_only` and
+enforced by `fs_controller::isAccessAllowed()`). The `folder` constructor
+argument and the obsolete 4th `$admin` argument MUST NOT be relied on for that
+gate. The mutation MUST be CSRF-gated, and every rendered label MUST be
+escaped.
 
 #### Scenario: Round-trip read and write
 

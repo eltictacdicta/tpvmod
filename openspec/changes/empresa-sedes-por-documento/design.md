@@ -599,7 +599,7 @@ save a sede without changing the base company.
 
 | Boundary | Applicability | Expected safe / failure behaviour | RED test |
 |---|---|---|---|
-| HTTP routing (new POST actions: `save_sede`, `delete_sede`, `save_sede_mapping`) | Applicable | Correct marker ⇒ the sede/mapping handler runs; page-level admin gate (`parent::__construct(..., 'admin', TRUE, TRUE)`) blocks non-admins; every handler validates CSRF and writes nothing on failure. | 22–26 (dispatch), 39, 43 (tpvmod CSRF) |
+| HTTP routing (new POST actions: `save_sede`, `delete_sede`, `save_sede_mapping`) | Applicable | Correct marker ⇒ the sede/mapping handler runs; administrator-only access is declared by the class-level `#[AdminOnly]` attribute on the controller, resolved by `fs_page::is_admin_only_class()` through the attribute name string (the obsolete 4th `$admin` constructor argument is ignored and is not a gate); every handler validates CSRF and writes nothing on failure. | 22–26 (dispatch), 39, 43 (tpvmod CSRF), `TpvmodSettingsAdminOnlyTest` (admin-only declaration) |
 | XSS / render boundary | Applicable | All sede output through `{{ }}`; no `|raw` on user text; `test()` `no_html()`-sanitizes on write (defense in depth); `descripcion` fallback `?: sede.nombre` still escaped. | 3, 42, 44 |
 | SQL injection | Applicable | `var2str()` on every value/PK; `sql_to_int('codsede')` in `get_new_codigo()`; no string concatenation of user input. | 5, 6, 7 |
 | Shell / subprocess | N/A — none introduced. | — | — |

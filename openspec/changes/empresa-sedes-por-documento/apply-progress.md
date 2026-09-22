@@ -491,16 +491,19 @@ clean after `fa4dc92`. WU-4 landed on the child branch
      `class_exists`). This degrades safely when business_data < 1.1.0 is
      deployed: sedes silently do not resolve and the loader falls back to the
      base company instead of fataling the print path.
-- **Deviations from design (WU-3) — two, both recorded:**
+- **Deviations from design (WU-3) — one, recorded, plus one documentary correction:**
   1. `tpvmod_sede_mapping_submitted(array $post, string $marker = TPVMOD_SEDE_MAPPING_POST_MARKER)`
      gained an **optional second parameter** (the design declared one) so the
      controller's own constant can carry the literal. Backwards compatible:
      callers that omit it keep the default marker.
-  2. The new `lib/tpvmod_sede_mapping.php` helper file was **not** in the
-     design's file list. It exists because the plugin's convention is to keep
-     pure, testable logic in `lib/` (precedent `lib/tpvmod_modules.php`), which
-     is what makes the mapping logic unit-testable without instantiating
-     `fs_controller` (AD-14).
+  2. **Documentary correction (verify finding W3).** An earlier version of this
+     record declared `lib/tpvmod_sede_mapping.php` a design deviation because
+     the file was "**not** in the design's file list". That statement was
+     factually wrong. The design specifies that exact file and its three
+     functions in AD-14 (`design.md:250-255`), in the File Changes table
+     (`design.md:326`) and in the interfaces block (`design.md:416-421`).
+     Creating it is the design, not a deviation. The only WU-3 deviation is
+     item 1 above.
 - **Honest gaps (WU-3):**
   - CSRF rejection is covered by a **source contract** (`isCsrfValid()` asserted
     inside `saveSedeMapping()`), because the controller extends `fs_controller`
