@@ -486,3 +486,101 @@ parameter of `tpvmod_sede_mapping_submitted()`.
 
 `model/cuenta_banco.php` in `plugins/business_data` remains modified-and-unstaged,
 untouched and not part of either follow-up commit.
+
+---
+
+## Post-archive smoke finding
+
+**Date:** 2026-09-23
+**Context:** production manual smoke test by the human, after this change was
+archived. This section is appended; the original findings above are unchanged
+and were accurate when written. The archived **PASS WITH WARNINGS** verdict did
+**not** anticipate the class of gap recorded here.
+
+### The fatal
+
+Printing a presupuesto after creating a sede and mapping it to the
+`presupuesto` document type fataled:
+
+```
+Fatal error: Uncaught Error: Class "fs_settings" not found
+in plugins/business_data/model/empresa_sede.php:288
+#0 empresa_sede.php(322): empresa_sede::mapping()
+#1 RelatedModelsLoader.php(115): empresa_sede::resolveForDocumentType()
+#2 RelatedModelsLoader.php(42): RelatedModelsLoader::resolveEmpresa()
+#3 PresupuestoPrintView.php(181): RelatedModelsLoader::load()
+```
+
+### Root cause
+
+`empresa_sede::mapping()` and `empresa_sede::setMappingFor()` instantiated
+`new \fs_settings()` unconditionally. `fs_settings` lives in
+`base/fs_settings.php` and is **not** autoloadable on the modern entry path:
+the legacy class map in `base/fs_autoload.php` is not wired into
+`index.php` / `Kernel`, and the root Composer autoload is PSR-4 for
+`FSFramework\` only. The admin paths worked only by accident —
+`tpvmod_settings.php` / `tpvmod.php` `require_once` the file explicitly — while
+the PDF print path (`index.php` → `FacturaPdf1Controller` → print view →
+`RelatedModelsLoader`) never did.
+
+### Why the unit suite could not catch it
+
+Every test setup of this change preloaded the class itself with
+`require_once FS_FOLDER . '/base/fs_settings.php'` (in
+`EmpresaSedeResolutionTest`, `AdminEmpresaDispatchActionTest`,
+`AdminEmpresaSedeCsrfTest` and `RelatedModelsLoaderEmpresaSedeTest`). That
+preload is exactly the masking: the model's own loading gap was removed from the
+test surface at the moment it was introduced, so the whole suite stayed green
+while production fataled. This is the systemic root class, not the single
+instance: **production code assumed a base class was already loaded, and the
+tests preloaded it, masking the assumption.**
+
+### Fix
+
+- **`plugins/business_data`** · branch `feat/empresa-sedes-panel` · commit
+  `8bd037e7` — a single private static `empresa_sede::settings()` accessor that
+  loads the class on demand with the core's own precedent verbatim
+  (`src/Core/Html.php`: guarded `class_exists('fs_settings', false)` +
+  `require_once FS_FOLDER . '/base/fs_settings.php'`). Both `mapping()` and
+  `setMappingFor()` now route through it; the guard is centralized so a second
+  call site cannot reintroduce the gap.
+- **`plugins/factura_pdf1`** · branch `feat/empresa-sedes` · commit `50f3bef` —
+  removed the masking `fs_settings` preload from
+  `tests/Unit/RelatedModelsLoaderEmpresaSedeTest.php`.
+- New regression test
+  `plugins/business_data/tests/EmpresaSedeEntryPointLoadingTest.php` (in commit
+  `8bd037e7`): a subprocess probe that loads ONLY `base/fs_model.php` and the
+  model in a fresh PHP process, asserts `fs_settings` was never preloaded, and
+  calls `empresa_sede::mapping()` / `setMappingFor()`. It was verified RED
+  against the unfixed code (exit 255, `Class "fs_settings" not found`) and GREEN
+  after the fix.
+
+### Audit result
+
+The whole class of bug was audited across the change's new runtime paths
+(`empresa_sede` model, `RelatedModelsLoader` and its `requireRelatedModels()`,
+the four print views and the adapter/controller chain, `admin_empresa` and the
+tpvmod handlers/views). Exactly **one** instance existed in the code this change
+added: `fs_settings` in `empresa_sede`. It is fixed. Every other dependency of
+the new code was already explicitly loaded by its entry point (see the dependency
+table in the fix's apply record).
+
+Pre-existing gaps in code this change did **not** touch are reported separately,
+not fixed here:
+
+- `plugins/business_data/controller/admin_empresa.php` `save_traducciones()`
+  guards with `class_exists('fs_settings')` (autoload=true). Because the class is
+  not autoloadable, the translation save is silently skipped when the class was
+  not loaded earlier. Fails soft, not fatal.
+- `plugins/clientes_core/Init.php` `upgrade()` calls `new \fs_settings()`
+  unguarded. `PluginSchemaSynchronizer::runInitMigrations()` wraps the call in
+  `catch (\Throwable)`, so it degrades to a reported migration error rather than
+  a fatal.
+
+### Lesson
+
+Entry-point dependency loading must be verified end-to-end, not only by unit
+tests. A unit test that preloads a class the production code must load itself
+proves nothing about the production entry point; where a class is not
+autoloadable, the guard has to live in the code that uses it, and the test has to
+run from an entry point that has not preloaded it.
