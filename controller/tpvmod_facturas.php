@@ -47,6 +47,7 @@ class tpvmod_facturas extends fs_controller
    public $total_resultados;
    public $total_resultados_comision;
    public $total_resultados_txt;
+   private $telefonos_map = null;
    
    public function __construct()
    {
@@ -274,6 +275,40 @@ class tpvmod_facturas extends fs_controller
       }
       
       return tpvmod_build_list_url($this->url(), $params);
+   }
+   
+   /**
+    * Phone per customer for the rendered page, memoized. Resolved with one
+    * batched clientes lookup for the page's codcliente set (LHT-06).
+    *
+    * @return array<string, string>
+    */
+   private function telefonos_pagina(): array
+   {
+      if($this->telefonos_map === null)
+      {
+         $codes = array_map(fn($d) => (string) $d->codcliente, $this->resultados ?: array());
+         $this->telefonos_map = tpvmod_phone_map($codes, function (array $set): array {
+            $escaped = array_map(fn(string $c): string => $this->var2str($c), $set);
+            $sql = 'SELECT codcliente, telefono1, telefono2 FROM clientes'
+                 . ' WHERE codcliente IN (' . implode(',', $escaped) . ');';
+            
+            $map = array();
+            foreach($this->db->select($sql) ?: array() as $row)
+            {
+               $map[(string) $row['codcliente']] = $row;
+            }
+            
+            return $map;
+         });
+      }
+      
+      return $this->telefonos_map;
+   }
+   
+   public function telefono_cliente(string $codcliente): string
+   {
+      return $this->telefonos_pagina()[$codcliente] ?? '';
    }
    
    public function buscar_lineas()

@@ -277,6 +277,26 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testListingControllersUseBatchedPhoneLookup(): void
+    {
+        foreach (self::LISTING_CONTROLLERS as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+
+            $this->assertStringContainsString('public function telefono_cliente(', $content, $relativePath);
+
+            $lookup = $this->controllerMethodBody($content, 'telefonos_pagina');
+            $this->assertNotSame('', $lookup, $relativePath . '::telefonos_pagina not found');
+            $this->assertStringContainsString('tpvmod_phone_map(', $lookup, $relativePath);
+            $this->assertStringContainsString('FROM clientes', $lookup, $relativePath);
+            $this->assertStringContainsString('codcliente IN (', $lookup, $relativePath);
+            $this->assertSame(
+                1,
+                substr_count($lookup, 'FROM clientes'),
+                $relativePath . ' must run exactly one batched clientes lookup'
+            );
+        }
+    }
+
     public function testEveryPostFormCarriesCsrfField(): void
     {
         $iterator = new \RecursiveIteratorIterator(
@@ -306,7 +326,8 @@ class TpvmodTwigTemplatesTest extends TestCase
 
     /**
      * Extract a controller method body from its declaration up to the next
-     * method declaration. Returns '' when the method is absent.
+     * method declaration. Returns '' when the method is absent. Only visibility
+     * declarations terminate a body, so nested closures are kept.
      */
     private function controllerMethodBody(string $source, string $method): string
     {
@@ -316,7 +337,7 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
 
         $tail = substr($source, $start);
-        if (preg_match('/\n[ \t]*(?:public |private |protected )?function /', $tail, $matches, PREG_OFFSET_CAPTURE) === 1) {
+        if (preg_match('/\n[ \t]*(?:public|private|protected)\s+function\s+/', $tail, $matches, PREG_OFFSET_CAPTURE) === 1) {
             return substr($tail, 0, (int) $matches[0][1]);
         }
 
