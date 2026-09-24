@@ -154,9 +154,49 @@ function tpvmodAbrirFormularioCliente(codcliente)
    });
 }
 
+/**
+ * Fill the D1-D4 inputs from the selected discount-group option (data-d1..d4)
+ * so choosing a group shows its defaults without a reload. The server is still
+ * authoritative: it re-applies the group defaults on save when the group moved.
+ */
+function tpvmodClienteGrupoDescuentoChange(select)
+{
+   if (!select || !select.selectedOptions || !select.selectedOptions.length) {
+      return;
+   }
+
+   var opt = select.selectedOptions[0];
+   if (!opt) {
+      return;
+   }
+
+   var form = select.form || document.querySelector('form[name=f_cliente_tpv]');
+   if (!form) {
+      return;
+   }
+
+   ['d1', 'd2', 'd3', 'd4'].forEach(function(field) {
+      if (opt.dataset[field] === undefined) {
+         return;
+      }
+      var input = form.querySelector('input[name="' + field + '"]');
+      if (input) {
+         input.value = opt.dataset[field];
+      }
+   });
+}
+
 function tpvmodGuardarCliente()
 {
    if (!document.f_cliente_tpv) {
+      return;
+   }
+
+   // The form submits through this handler (onsubmit="return false;"), so run
+   // the native constraint validation explicitly to make the mandatory selects
+   // and name meaningful before hitting the server.
+   if (typeof document.f_cliente_tpv.reportValidity === 'function'
+      && !document.f_cliente_tpv.reportValidity()) {
       return;
    }
 

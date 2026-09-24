@@ -93,9 +93,9 @@
             </div>
             <div class="col-sm-3">
                <div class="form-group">
-                  <label>Grupo</label>
-                  <select name="codgrupo" class="form-control input-sm">
-                     <option value="">Sin grupo</option>
+                  <label>Grupo *</label>
+                  <select name="codgrupo" class="form-control input-sm" required>
+                     <option value="" disabled{% if not cliente.codgrupo %} selected{% endif %}>— Seleccione grupo —</option>
                      {% for g in fsc.tpv_grupos %}
                      <option value="{{ g.codgrupo }}"{% if cliente.codgrupo == g.codgrupo %} selected{% endif %}>{{ g.nombre }}</option>
                      {% endfor %}
@@ -151,11 +151,15 @@
          <div class="row">
             <div class="col-sm-4">
                <div class="form-group">
-                  <label>Grupo descuentos</label>
-                  <select name="codgrupo_descuento" class="form-control input-sm">
-                     <option value="">Sin grupo</option>
+                  <label>Grupo descuentos *</label>
+                  <select name="codgrupo_descuento" class="form-control input-sm" required
+                     onchange="tpvmodClienteGrupoDescuentoChange(this)">
+                     <option value="" disabled data-d1="0" data-d2="0" data-d3="0" data-d4="0"{% if not cliente.codgrupo_descuento %} selected{% endif %}>— Seleccione grupo —</option>
                      {% for gd in fsc.tpv_grupos_descuentos %}
-                     <option value="{{ gd.codgrupo_descuento }}"{% if cliente.codgrupo_descuento == gd.codgrupo_descuento %} selected{% endif %}>{{ gd.nombre }}</option>
+                     <option value="{{ gd.codgrupo_descuento }}"
+                        data-d1="{{ gd.d1 ?? 0 }}" data-d2="{{ gd.d2 ?? 0 }}"
+                        data-d3="{{ gd.d3 ?? 0 }}" data-d4="{{ gd.d4 ?? 0 }}"
+                        {% if cliente.codgrupo_descuento == gd.codgrupo_descuento %} selected{% endif %}>{{ gd.nombre }}</option>
                      {% endfor %}
                   </select>
                </div>

@@ -130,6 +130,49 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testDiscountGroupSelectExposesDefaultsAndHandler(): void
+    {
+        $content = file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
+        $this->assertIsString($content);
+        $this->assertStringContainsString('onchange="tpvmodClienteGrupoDescuentoChange(this)"', $content);
+        $this->assertStringContainsString('data-d1=', $content);
+        $this->assertStringContainsString('data-d4=', $content);
+
+        $js = file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
+        $this->assertIsString($js);
+        $this->assertStringContainsString('function tpvmodClienteGrupoDescuentoChange(select)', $js);
+    }
+
+    public function testGroupSelectsAreMandatoryWithoutSinGrupoOption(): void
+    {
+        $content = file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
+        $this->assertIsString($content);
+
+        foreach (['codgrupo', 'codgrupo_descuento'] as $name) {
+            $this->assertMatchesRegularExpression(
+                '/<select name="' . $name . '"[^>]*required/',
+                $content,
+                $name . ' must be a mandatory select'
+            );
+        }
+
+        // Neither group may offer a selectable "Sin grupo" option: the
+        // mandatory group gate lives in cliente::test() and an empty option
+        // would only produce a confusing save error.
+        $this->assertSame(
+            0,
+            substr_count($content, 'Sin grupo'),
+            'no group selector must offer a selectable "Sin grupo" option'
+        );
+    }
+
+    public function testGuardarClienteRunsNativeConstraintValidation(): void
+    {
+        $js = file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
+        $this->assertIsString($js);
+        $this->assertStringContainsString('document.f_cliente_tpv.reportValidity()', $js);
+    }
+
     public function testTpvmodJsIncludesUnsavedChangesGuard(): void
     {
         $content = file_get_contents($this->pluginDir . '/view/js/tpvmod.js');
