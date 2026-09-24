@@ -388,7 +388,8 @@ class TpvmodTwigTemplatesTest extends TestCase
     }
 
     /**
-     * Every plugin .php/.twig source file except tests/ and vendor/.
+     * Every plugin .php/.twig source file except tests/, vendor/ and the
+     * openspec/ prose artifacts.
      *
      * @return list<string>
      */
@@ -405,8 +406,11 @@ class TpvmodTwigTemplatesTest extends TestCase
             }
 
             $path = $file->getPathname();
-            if (str_contains($path, '/tests/') || str_contains($path, '/vendor/') || str_contains($path, '/.git/')) {
-                continue;
+            $excluded = ['/tests/', '/vendor/', '/.git/', '/openspec/'];
+            foreach ($excluded as $segment) {
+                if (str_contains($path, $segment)) {
+                    continue 2;
+                }
             }
 
             if (str_ends_with($file->getFilename(), '.php') || str_ends_with($file->getFilename(), '.twig')) {
