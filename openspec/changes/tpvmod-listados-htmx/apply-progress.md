@@ -3,7 +3,8 @@
 > **Plugin-local SDD.** Change root: `plugins/tpvmod/openspec/changes/tpvmod-listados-htmx/`.
 > Core `openspec/` is intentionally NOT touched.
 > Artifact store: OpenSpec (plugin-local). Batches: **PR1 (U1–U10, complete)** and
-> **PR2 (U11 done; U12–U15 halted by the review-budget guard — see the PR2 section at the end)**.
+> **PR2 (U11–U13 done; U14–U15 withheld by the review-budget guard — see the PR2
+> section at the end)**.
 
 ## Status
 
@@ -265,23 +266,25 @@ controllers.
 |---|---|
 | Mode | **Strict TDD** (`strict_tdd: true`) |
 | Batch | PR2 — htmx/Alpine on the 4 listings + line-search fragments (U11–U15) |
-| Branch | `feat/tpvmod-listados-htmx-pr2` @ `61bfae1` (from PR1 tip `c490800`) |
-| Units completed | **U11 only** (commit `61bfae1`) |
-| Units halted | **U12, U13, U14, U15 — not started** (budget guard, see escalation) |
-| Baseline before edits | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → `OK (167 tests, 859 assertions)` |
-| After U11 | same command → `OK (169 tests, 907 assertions)` |
-| `phpstan` after U11 | **no new errors** (1 pre-existing, identical to baseline: `tests/Core/PluginEnableAjaxSafetyTest.php:308`) |
+| Branch | `feat/tpvmod-listados-htmx-pr2` @ `37ac3ee` (from PR1 tip `c490800`) |
+| Units completed | **U11–U13** (`61bfae1`, `7843685`, `37ac3ee`) |
+| Units withheld | **U14, U15 — not started** (budget guard, see escalation) |
+| Baseline before edits (U12–U13 attempt) | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → `OK (169 tests, 907 assertions)` at `e4f6bec` |
+| After U12 | same command → `OK (171 tests, 1115 assertions)` (U12-only index state) |
+| After U13 | same command → `OK (172 tests, 1167 assertions)` |
+| `phpstan` after U13 | **no new errors** (1 pre-existing, identical to baseline: `tests/Core/PluginEnableAjaxSafetyTest.php:308`) |
 | Twig compile harness | all 4 listings + 4 fragments compile → `TWIG LINT OK` |
+| U12+U13 attempt size | **507 changed lines** (`+433 / −74`, measured `e4f6bec..37ac3ee`) — within the 800 budget |
 
 ## Units
 
 | Unit | Goal | Status |
 |---|---|---|
 | U11 | htmx/Alpine opt-in boot + stable region scaffold (LHT-01/LHT-02) | ✅ `61bfae1` |
-| U12 | Control → `hx-*` mapping, filter form GET, top-bar split (LHT-01/03/04) | ⛔ not started |
-| U13 | htmx line-search form + legacy JS/`$.ajax` removal (LHT-10, TCP-01) | ⛔ not started |
-| U14 | Line-search fragments: marker removed, offset pager, well-formed alerts | ⛔ not started |
-| U15 | PR2 gate (suite + phpstan + per-module smoke) | ⛔ not started |
+| U12 | Control → `hx-*` mapping, filter form GET, top-bar split (LHT-01/03/04) | ✅ `7843685` |
+| U13 | htmx line-search form + legacy JS/`$.ajax` removal (LHT-10, TCP-01) | ✅ `37ac3ee` |
+| U14 | Line-search fragments: marker removed, offset pager, well-formed alerts | ⛔ not started (withheld) |
+| U15 | PR2 gate (suite + phpstan + per-module smoke) | ⛔ not started (withheld) |
 
 ## Files changed (U11)
 
@@ -295,57 +298,135 @@ controllers.
 
 `openspec/changes/tpvmod-listados-htmx/tasks.md` and this file are prose, not PR budget.
 
+## Files changed (U12–U13)
+
+| File | Action | What was done | Lines (authored) |
+|---|---|---|---|
+| `view/tpvmod_presupuestos.html.twig` | modified | U12: form `method="get"` (no CSRF) + `hx-get`/`hx-target`/`hx-select`/`hx-swap`/`hx-push-url`/`hx-trigger="submit"` + hidden `mostrar`/`order`; serie/codagente/desde/hasta each carry `hx-get="{{ fsc.list_url({'mostrar':'buscar','offset':0}, [own]) }}"` + `hx-trigger="change"`; 4 tabs + 4 order options + pager mapped with `fsc.list_url(...)`/`value['url']`. U13: `#f_buscar_lineas` + 3 inputs get `hx-post`/`hx-target="#search_results"`/`hx-swap="innerHTML"`/`hx-trigger`(delay)/`hx-sync` | +70 / −19 |
+| `view/tpvmod_facturas.html.twig` | modified | same, facturas region/tabs (`todo`/`sinpagar`/`buscar`) and `vencimiento_*` order tokens; **adds the missing hidden `offset`** to the line-search form for parity | +67 / −18 |
+| `view/tpvmod_albaranes.html.twig` | modified | same, albaranes region/tabs (`todo`/`pendientes`/`buscar`) and `codigo_*` order tokens | +66 / −18 |
+| `view/tpvmod_pedidos.html.twig` | modified | same, pedidos region/tabs (`todo`/`pendientes`/`rechazados`/`buscar`) and `codigo_*` order tokens | +70 / −19 |
+| `tests/TpvmodTwigTemplatesTest.php` | modified | `MODULE_TABS`/`MODULE_ORDER_TOKENS` consts; `testControlToUrlMapping`, `testRegionContainsMappedControls`, `testLineSearchFragmentContract`; `testListingsDeclareStableSwapRegion` extended with the hx-target/select/swap/push count equality | +160 |
+
+No controller, `lib/`, fragment or Composer dependency was touched in this attempt.
+
 ## TDD Cycle Evidence (Hard Gate — Strict TDD)
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
 |---|---|---|---|---|---|---|---|
 | U11 | `TpvmodTwigTemplatesTest.php` | Contract (source, DB-free) | ✅ 167/167 | ✅ Written; run failed (2 tests: import + region) | ✅ Passed (169, 907 assertions) | ✅ all 4 templates: exactly-one imports, boot posture, both markers, single `'htmx:after:swap'`, no `HtmxCrud.html.twig`, one region id each, `x-data="tpvmodListado"`, theme header/footer free of htmx/Alpine | ✅ one component name for all four; no list state in Alpine; Twig compile harness run over all 8 templates |
+| U12 | same | Contract (source, DB-free) | ✅ 169/169 @ `e4f6bec` | ✅ Written; run failed (3 tests: region control count, `testControlToUrlMapping`, `testLineSearchFragmentContract`) | ✅ Passed (171, 1115 assertions) at the U12-only index state | ✅ 4 modules: every filter own-key omission, per-module tab set, per-module order tokens, pager `value['url']`, repo-wide `hx-params` guard, region boundary/after-region modals, `hx-target`==`hx-select`==`hx-swap`==`hx-push-url` counts | ✅ filter form kept below the region (U17 owns the reorder); one URL builder feeds `href` and `hx-get` |
+| U13 | same | Contract (source, DB-free) | ✅ 171/171 (U12 commit) | ✅ Written; run failed (`hx-post="{{ fsc.url() }}"` absent) | ✅ Passed (172, 1167 assertions) | ✅ 4 modules: form + both inputs, debounce + both `hx-sync` values, `method="post"`+CSRF fallback retained, hidden `offset` (facturas added), no `$.ajax`/`mas_resultados(`/inline `buscar_lineas()` | ✅ no `hx-include`/`hx-params`; no `beforeend` append |
 
 ### Work Unit Evidence (Hard Gate — all modes)
 
 | Unit | Focused test command + exact result | Runtime harness command/scenario + exact result | Rollback boundary |
 |---|---|---|---|
 | U11 | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → `OK (169 tests, 907 assertions)` | Throwaway Twig compile harness (`_twig_lint_throwaway.php`, deleted after the run): `$twig->load()` on the 4 listings + 4 fragments → `TWIG LINT OK`. Full authenticated browser smoke still needs an agent session → delegated to `sdd-verify` | Revert the 4 listing templates only (single commit `61bfae1`); controllers and fragments untouched |
+| U12 | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest` → `OK (23 tests, 687 assertions)`; full suite at the U12-only index state `OK (171 tests, 1115 assertions)` | Throwaway Twig compile harness over the 4 listings + 4 fragments → `TWIG LINT OK`. Browser smoke of tabs/order/pager/filters (JS-disabled fallback, pushed URL reload) needs an agent session → delegated to `sdd-verify` | Revert the 4 listing templates' `hx-*`/GET-form hunks (commit `7843685`); the line-search form and the fragments are untouched by U12 |
+| U13 | `… --filter TpvmodTwigTemplatesTest` → `OK (23 tests, 687 assertions)`; full suite `OK (172 tests, 1167 assertions)` | Twig compile harness re-run → `TWIG LINT OK`. Live line-search debounce/pager/CSRF rejection needs an agent session → delegated to `sdd-verify` | Revert the `#f_buscar_lineas`/input `hx-post` hunks + the facturas hidden `offset` (commit `37ac3ee`); U12's region mapping is untouched |
 
 ## Test Summary
 
-- **Tests added**: 2 (`testListingsImportHtmxAndAlpineOnce`, `testListingsDeclareStableSwapRegion`) + 2 consts + 1 helper. Suite 167 → 169.
-- **Layers used**: Contract/source (DB-free) 2, Twig-compile harness 1 (not committed), Unit 0, E2E 0.
+- **Tests added (U11)**: 2 (`testListingsImportHtmxAndAlpineOnce`, `testListingsDeclareStableSwapRegion`) + 2 consts + 1 helper. Suite 167 → 169.
+- **Tests added (U12–U13)**: 3 methods (`testControlToUrlMapping`, `testRegionContainsMappedControls`, `testLineSearchFragmentContract`) + `MODULE_TABS`/`MODULE_ORDER_TOKENS` consts + the region count-equality extension. Suite 169 → 172.
+- **Layers used**: Contract/source (DB-free) 5, Twig-compile harness 1 (not committed), Unit 0, E2E 0.
 - **Pure functions created**: 0 (templates + test only).
 
-## PR2 budget escalation (U12–U15 halted)
+## Verification (U12–U13 gate) — real command output
 
-The prompt's budget guard fired: **PR2 must fit in 800 changed lines, and U11 alone is
-1370** (`+739 / −631`). The churn is *structural moves prescribed by the tasks*, not new
-code: the filter form moves out of the region (~85 lines deleted + re-added per template),
-the order dropdown moves from the top bar into the region toolbar (~35 per template), the
-legacy line-search JS block is deleted (~50 per template), and the marker-guarded Alpine
-registration is added (~40 per template). No comment, blank line or test was deleted and
-no code was compressed to chase the number.
+### 1. `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml`
 
-Honest projection for the remaining units (not implemented, so the projection is
-approximate): U12 `hx-*` mapping ≈ +250–350, U13 line-search form rewrite ≈ +120–160,
-U14 fragment pager/alerts ≈ +120–200, U15 gate ≈ +0, plus ≈ +120–160 of tests →
-**PR2 total ≈ 2000–2350 changed lines**, i.e. ~2.5–2.9× the 800 budget.
+```
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
 
-Per the prompt, the batch was **halted instead of re-sliced unilaterally** and the
-maintainer's decision is required:
+Runtime:       PHP 8.3.33
+Configuration: /var/www/html/plugins/tpvmod/phpunit.xml
+
+...............................................................  63 / 172 ( 36%)
+............................................................... 126 / 172 ( 73%)
+..............................................                  172 / 172 (100%)
+
+Time: 00:00.050, Memory: 8.00 MB
+
+OK (172 tests, 1167 assertions)
+```
+
+### 2. `ddev exec composer phpstan`
+
+```
+Note: Using configuration file /var/www/html/phpstan.neon.
+   0/209 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%[1G[2K 209/209 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%
+
+ ------ -----------------------------------------------------------------------
+  Line   tests/Core/PluginEnableAjaxSafetyTest.php
+ ------ -----------------------------------------------------------------------
+  308    Method
+         Tests\Core\AjaxGuardTestPluginManager::applyPluginSchemaUpdates()
+         should return array{success: bool, changes: list<string>, errors: lis
+         t<string>} but returns array{success: true, errors: array{}}.
+         🪪  return.type
+         💡  Array does not have offset 'changes'.
+ ------ -----------------------------------------------------------------------
+
+
+ [ERROR] Found 1 error
+```
+
+**Interpreting this**: the single error is **pre-existing and byte-identical to the
+baseline** (same file, same line, same rule). PHPStan analyses `paths: [src, tests]`
+only — `plugins/tpvmod/**` is not analysed, so this change cannot introduce a PHPStan
+error. Gate reading: **no new errors.**
+
+### 3. U12–U13-scoped audit (all pass)
+
+| Check | Result |
+|---|---|
+| `hx-params` anywhere in the plugin (`view/ controller/ lib/ tests/`) | **none** (test-enforced) |
+| `hx-include` in the four listing templates | **none** |
+| `onchange="this.form.submit()"` in the four listings | **none** (all four filter selects/date inputs are htmx-mapped) |
+| `hx-target`/`hx-select`/`hx-swap="outerHTML"`/`hx-push-url="true"` occurrence counts | **equal** per template (LHT-01 control half) |
+| `$.ajax` / `mas_resultados(` / `function buscar_lineas(` in the four listings | **none** (TCP-01) |
+| Region boundary: the filter form (`name="f_custom_search"`) and the line-search form stay **outside/below** the region | **asserted** by `testRegionContainsMappedControls` |
+| new `\|raw` on user-controlled output in the diff | **none** (only pre-existing `fsc.url()\|raw` / server-built pager `value['url']\|raw`) |
+| Twig compile: 4 listings + 4 fragments | `TWIG LINT OK` |
+| `php -l` on the extended test file | no syntax errors |
+
+## PR2 budget tracking (U11 over budget; U12–U13 within)
+
+The prompt's budget guard fired at U11: **PR2 must fit in 800 changed lines, and U11 alone
+is 1370** (`+739 / −631`). That churn is *structural moves prescribed by the tasks*, not new
+code: the filter form moves out of the region, the order dropdown moves from the top bar
+into the region toolbar, the legacy line-search JS block is deleted, and the marker-guarded
+Alpine registration is added. No comment, blank line or test was deleted and no code was
+compressed to chase the number.
+
+**U12–U13 landed at 507 changed lines** (`+433 / −74` = test `+160` + four templates
+`+273 / −74`, measured `e4f6bec..37ac3ee`) — **within the 800 budget**. The estimate in the
+U11 escalation (`U12 + U13 ≈ +370–510` plus tests) was therefore accurate.
+
+Remaining projection (not implemented, approximate): U14 fragment pager/alerts/pager ≈
+`+120–200`, U15 gate ≈ `+0`, plus ≈ `+40–80` of tests → **remaining PR2 ≈ +160–280**. With
+U11's 1370, **PR2 total ≈ 2040–2160**, i.e. ~2.5–2.7× the 800 budget. The overage is still
+concentrated in U11's structural moves.
+
+The maintainer's decision is still required before U14–U15 resume:
 
 1. **`size:exception` for PR2** (recommended): accept PR2 as one slice; reviewers read the
    four template diffs as moves (the tabs/table/pagination markup is byte-identical; only
-   the wrapper, the toolbar move and the form move change). Then this branch resumes at U12.
+   the wrapper, the toolbar move and the form move change).
 2. **Orchestrated re-slice**: e.g. PR2a = region + boot (U11, 1370) / PR2b = `hx-*` mapping +
    line search + fragments + gate (U12–U15). "PR2a" alone still exceeds 800, so a re-slice
    is not a clean fix either — the structural churn is inherent to the change.
 
-**Known intermediate state.** U11 (as prescribed by `tasks.md`) deletes the legacy
-line-search jQuery before U13 wires `hx-post`, so between U11 and U13 the line-search modal
-only has its native POST fallback (it renders the bare `ajax/ventas_lineas_*` fragment). The
-PR2 final state restores it via U13/U14. This was flagged for the reviewer; it is not a
-change to the plan.
+**Intermediate state resolved for the line search.** Between U11 and U13 the line-search
+modal only had its native POST fallback; `37ac3ee` restores the transport via `hx-post`.
+U14 still owns the fragment-side pager/marker/alerts, so the line-search **pager** is not
+wired until U14.
 
 ## Status
 
-**11/15 PR2-track units complete** (U11 done; U1–U10 from PR1 unchanged). **Blocked by the
-review-budget guard** for U12–U15: `size:exception` or a re-slice decision is required
-before this batch resumes. `phpstan`: no new errors. Suite green at `61bfae1`.
+**13/15 PR2-track units complete** (U11–U13 done; U1–U10 from PR1 unchanged). **U14–U15 remain
+withheld** by the review-budget guard: `size:exception` or a re-slice decision is required
+before this batch resumes. `phpstan`: no new errors. Suite green at `37ac3ee`
+(`OK (172 tests, 1167 assertions)`).

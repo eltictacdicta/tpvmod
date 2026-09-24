@@ -11,9 +11,10 @@
 > `exploration.md` (F1–F10) and `decisions-pending.md` (D1–D7, confirmed).
 >
 > **Status:** PR1 (U1–U10) applied on branch `feat/tpvmod-listados-htmx-pr1`;
-> see `apply-progress.md`. U1–U9 and the U10 suite/phpstan bullets are done; the
-> U10 manual smoke stays pending for `sdd-verify`. PR2 (U11+) and PR3 (U16+)
-> checkboxes are still **pending** (`- [ ]`).
+> see `apply-progress.md`. PR2 lives on `feat/tpvmod-listados-htmx-pr2`:
+> **U11–U13 are applied** (`61bfae1`, `7843685`, `37ac3ee`); **U14–U15 remain
+> pending** (`- [ ]`). PR3 (U16+) checkboxes are still **pending**. The U10
+> manual smoke and the PR2 per-module smoke stay pending for `sdd-verify`.
 
 ## Execution rules (mandatory)
 
@@ -325,7 +326,7 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 - [x] GREEN — implement the macro imports, boot calls and the region wrapper for all four; **delete the inline `buscar_lineas()` and `mas_resultados()`** and the `#b_buscar_lineas`/`#f_buscar_lineas` jQuery bindings (keep `clean_cliente()` and the `query` focus for PR3). Keep modals **outside** the region. |
 - [x] REFACTOR — one Alpine component name (`tpvmodListado`) for all four; no list state in Alpine. |
 - [x] Verified — Twig compile harness: all 4 listings + 4 fragments `OK`; plugin suite `OK (169 tests, 907 assertions)`. **U11 committed as `61bfae1` (1370 changed lines).** |
-- [ ] **BLOCKED by the budget guard — U12–U15 not started.** See `apply-progress.md` → "PR2 budget escalation (U12–U15 halted)". |
+- [x] **U12–U13 applied** (`7843685`, `37ac3ee`; 507 changed lines, within the 800 budget). **U14–U15 still withheld** by the PR2 budget guard pending the maintainer's `size:exception` decision. See `apply-progress.md` → "PR2 budget escalation". |
 
 **Verificación:** one opt-in import per view; exactly one swap listener per view; marker guards present.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -341,9 +342,10 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~140–190 prod + ~50 test |
 
 **TDD — RED first**
-- [ ] RED — `testControlToUrlMapping`: each `hx-get` equals the `fsc.list_url(...)` form with the own key omitted, correct `hx-trigger` (`submit`/`change`/click), `hx-push-url="true"`; tab and order tokens per module; **`hx-params` absent everywhere** (repo-wide guard); **no `hx-include`**. `testRegionContainsMappedControls`: the region contains order toolbar + tabs + table + `fsc.paginas()`; `f_buscar_lineas`/`modal_huecos`/`modal_rechazar` after the region. Run → fail. |
-- [ ] GREEN — apply the design §3.2 table control by control; keep the four `fsc.paginas()` URLs feeding both `href` and `hx-get`. |
-| [ ] REFACTOR — no duplicated query keys; the filter form stays outside the region (below it, per the cross-PR note). |
+- [x] RED — `testControlToUrlMapping`: each `hx-get` equals the `fsc.list_url(...)` form with the own key omitted, correct `hx-trigger` (`submit`/`change`/click), `hx-push-url="true"`; tab and order tokens per module; **`hx-params` absent everywhere** (repo-wide guard); **no `hx-include`**. `testRegionContainsMappedControls`: the region contains order toolbar + tabs + table + `fsc.paginas()`; `f_buscar_lineas`/`modal_huecos`/`modal_rechazar` after the region. Run → fail. |
+- [x] GREEN — apply the design §3.2 table control by control; keep the four `fsc.paginas()` URLs feeding both `href` and `hx-get`. |
+| [x] REFACTOR — no duplicated query keys; the filter form stays outside the region (below it, per the cross-PR note). |
+- [x] Verified — plugin suite `OK (171 tests, 1115 assertions)` at the U12-only commit; Twig compile harness over the 4 listings + 4 fragments `OK`. Commit `7843685`. |
 
 **Verificación:** each control updates the URL by exactly its documented parameter and preserves the others; no `hx-params`/`hx-include`.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -359,9 +361,10 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 4 files · ~80–110 prod (mostly edits) |
 
 **TDD — RED first**
-- [ ] RED — `testLineSearchFragmentContract` (listing half): `hx-post="{{ fsc.url() }}"`, `hx-target="#search_results"`, `hx-swap="innerHTML"`, `hx-trigger` with `delay`, `hx-sync`; no `mas_resultados(`; no inline `$.ajax`. Run → fail. |
-- [ ] GREEN — rewrite the modal form; the modal opens via the existing `data-toggle="modal" data-target="#modal_buscar_lineas"`. |
-| [ ] REFACTOR — remove the now-dead stale-response comment; do **not** add `hx-include`/`hx-params`. |
+- [x] RED — `testLineSearchFragmentContract` (listing half): `hx-post="{{ fsc.url() }}"`, `hx-target="#search_results"`, `hx-swap="innerHTML"`, `hx-trigger` with `delay`, `hx-sync`; no `mas_resultados(`; no inline `$.ajax`. Run → fail. |
+- [x] GREEN — rewrite the modal form; the modal opens via the existing `data-toggle="modal" data-target="#modal_buscar_lineas"`. |
+| [x] REFACTOR — remove the now-dead stale-response comment; do **not** add `hx-include`/`hx-params`. |
+| [x] Verified — plugin suite `OK (172 tests, 1167 assertions)`; the legacy `$.ajax`/`mas_resultados()`/`buscar_lineas()` bindings were already deleted under U11 (`61bfae1`), so U13 adds the htmx POST wiring and pins their absence, plus the missing facturas hidden `offset`. Commit `37ac3ee`. |
 
 **Verificación:** typing debounces; the form still POSTs with the fallback token; no `$.ajax` remains.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
