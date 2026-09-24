@@ -321,9 +321,11 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~120–160 prod + ~50 test |
 
 **TDD — RED first**
-- [ ] RED — `testListingsImportHtmxAndAlpineOnce`: exactly one `{% import 'Macro/Htmx.html.twig' %}`, one `{% import 'Macro/Alpine.html.twig' %}`, `htmx.boot({'allowScriptTags': false})`, `alpine.boot()`, the two `window.__tpvmodListado*` markers, exactly one `'htmx:after:swap'` binding, **no** `HtmxCrud.html.twig`; `header`/`footer` free of `htmx`/`Alpine`. `testListingsDeclareStableSwapRegion`: exactly one `id="tpvmod-<tipo>-region"` per template. Run → fail. |
-- [ ] GREEN — implement the macro imports, boot calls and the region wrapper for all four; **delete the inline `buscar_lineas()` and `mas_resultados()`** and the `#b_buscar_lineas`/`#f_buscar_lineas` jQuery bindings (keep `clean_cliente()` and the `query` focus for PR3). Keep modals **outside** the region. |
-| [ ] REFACTOR — one Alpine component name (`tpvmodListado`) for all four; no list state in Alpine. |
+- [x] RED — `testListingsImportHtmxAndAlpineOnce`: exactly one `{% import 'Macro/Htmx.html.twig' %}`, one `{% import 'Macro/Alpine.html.twig' %}`, `htmx.boot({'allowScriptTags': false})`, `alpine.boot()`, the two `window.__tpvmodListado*` markers, exactly one `'htmx:after:swap'` binding, **no** `HtmxCrud.html.twig`; `header`/`footer` free of `htmx`/`Alpine`. `testListingsDeclareStableSwapRegion`: exactly one `id="tpvmod-<tipo>-region"` per template. Run → fail. |
+- [x] GREEN — implement the macro imports, boot calls and the region wrapper for all four; **delete the inline `buscar_lineas()` and `mas_resultados()`** and the `#b_buscar_lineas`/`#f_buscar_lineas` jQuery bindings (keep `clean_cliente()` and the `query` focus for PR3). Keep modals **outside** the region. |
+- [x] REFACTOR — one Alpine component name (`tpvmodListado`) for all four; no list state in Alpine. |
+- [x] Verified — Twig compile harness: all 4 listings + 4 fragments `OK`; plugin suite `OK (169 tests, 907 assertions)`. **U11 committed as `61bfae1` (1370 changed lines).** |
+- [ ] **BLOCKED by the budget guard — U12–U15 not started.** See `apply-progress.md` → "PR2 budget escalation (U12–U15 halted)". |
 
 **Verificación:** one opt-in import per view; exactly one swap listener per view; marker guards present.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
