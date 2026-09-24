@@ -1,14 +1,13 @@
 {# FS_ALBARAN — ajax line search results for tpvmod_albaranes #}
-<!--{{ fsc.buscar_lineas }}-->
 
 {% if fsc.get_errors() %}
    <div class="alert alert-danger">
-      {% for value in fsc.get_errors() %}<li>{{ value }}</li>{% endfor %}
+      {% for value in fsc.get_errors() %}<div>{{ value }}</div>{% endfor %}
    </div>
 {% endif %}
 {% if fsc.get_messages() %}
    <div class="alert alert-success">
-      {% for value in fsc.get_messages() %}<li>{{ value }}</li>{% endfor %}
+      {% for value in fsc.get_messages() %}<div>{{ value }}</div>{% endfor %}
    </div>
 {% endif %}
 
@@ -41,14 +40,20 @@
 <ul class="pager">
    {% if fsc.offset > 0 %}
    <li class="previous">
-      <a href="#" onclick="mas_resultados('-{{ fsc.lineas|length }}')">
+      <a href="#" hx-post="{{ fsc.url() }}"
+         hx-vals='{"offset": {{ max(0, fsc.offset - fsc.lineas|length) }}}'
+         hx-target="#search_results" hx-swap="innerHTML"
+         hx-sync="closest form:replace">
          <span class="glyphicon glyphicon-chevron-left"></span> &nbsp; Anteriores
       </a>
    </li>
    {% endif %}
    {% if fsc.lineas|length == constant('FS_ITEM_LIMIT') %}
    <li class="next">
-      <a href="#" onclick="mas_resultados('{{ fsc.lineas|length }}')">
+      <a href="#" hx-post="{{ fsc.url() }}"
+         hx-vals='{"offset": {{ fsc.offset + fsc.lineas|length }}}'
+         hx-target="#search_results" hx-swap="innerHTML"
+         hx-sync="closest form:replace">
          Siguientes &nbsp; <span class="glyphicon glyphicon-chevron-right"></span>
       </a>
    </li>

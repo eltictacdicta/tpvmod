@@ -589,6 +589,32 @@ class TpvmodTwigTemplatesTest extends TestCase
             $this->assertStringNotContainsString('mas_resultados(', $content, $view);
             $this->assertStringNotContainsString('function buscar_lineas(', $content, $view);
         }
+
+        // Fragment half: the four line-search fragments drop the stale-response
+        // marker, keep the endpoint/params and page with a server-computed
+        // offset so prev/next survive the htmx swap (LHT-10, §5.3, TCP-05).
+        foreach (self::LINE_FRAGMENTS as $fragment) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $fragment);
+
+            // The marker and the client-side pager arithmetic are gone.
+            $this->assertStringNotContainsString('<!--{{ fsc.buscar_lineas }}-->', $content, $fragment);
+            $this->assertStringNotContainsString('mas_resultados(', $content, $fragment);
+            $this->assertStringNotContainsString('onclick=', $content, $fragment);
+
+            // Well-formed alerts: a <div> per message, never a bare <li>.
+            $this->assertStringContainsString('<div>{{ value }}</div>', $content, $fragment);
+            $this->assertStringNotContainsString('<li>{{ value }}</li>', $content, $fragment);
+
+            // The pager posts the server-computed offset to the same endpoint,
+            // replacing the fragment; facturas gains it here (U14).
+            $this->assertStringContainsString('hx-post="{{ fsc.url() }}"', $content, $fragment);
+            $this->assertStringContainsString('hx-target="#search_results"', $content, $fragment);
+            $this->assertStringContainsString('hx-swap="innerHTML"', $content, $fragment);
+            $this->assertStringContainsString('hx-sync="closest form:replace"', $content, $fragment);
+            $this->assertStringContainsString('hx-vals=\'{"offset":', $content, $fragment);
+            $this->assertStringContainsString('max(0, fsc.offset - fsc.lineas|length)', $content, $fragment);
+            $this->assertStringContainsString('fsc.offset + fsc.lineas|length', $content, $fragment);
+        }
     }
 
     public function testEveryPostFormCarriesCsrfField(): void
