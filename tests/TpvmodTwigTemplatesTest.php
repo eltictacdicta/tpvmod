@@ -392,6 +392,52 @@ class TpvmodTwigTemplatesTest extends TestCase
         );
     }
 
+    public function testListingsRenderPhoneColumn(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            // LHT-06: every row resolves its phone through the controller's
+            // batched accessor; the document row never carries a phone column.
+            $this->assertStringContainsString(
+                'fsc.telefono_cliente(value.codcliente)',
+                $content,
+                $view . ' must render the batched phone accessor per row'
+            );
+            $this->assertStringNotContainsString(
+                'value.telefono1',
+                $content,
+                $view . ' must not read telefono1 from the document row'
+            );
+            $this->assertStringNotContainsString(
+                'value.telefono2',
+                $content,
+                $view . ' must not read telefono2 from the document row'
+            );
+        }
+    }
+
+    public function testListingsRenderCitySnapshot(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            // LHT-07: the city is the document billing snapshot, rendered
+            // read-only; no address lookup is added to the listing path.
+            $this->assertStringContainsString(
+                '{{ value.ciudad }}',
+                $content,
+                $view . ' must render the billing-city snapshot'
+            );
+        }
+
+        foreach (self::LISTING_CONTROLLERS as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+            $this->assertStringNotContainsString('dirclientes', $content, $relativePath);
+            $this->assertStringNotContainsString('domfacturacion', $content, $relativePath);
+        }
+    }
+
     public function testListingsImportHtmxAndAlpineOnce(): void
     {
         foreach (self::LISTING_TEMPLATES as $tipo => $view) {

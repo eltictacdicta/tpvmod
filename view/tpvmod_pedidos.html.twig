@@ -172,6 +172,8 @@
             <th></th>
             <th class="text-left">Código + {% if defined('FS_NUMERO2') %}{{ constant('FS_NUMERO2') }}{% endif %}</th>
             <th class="text-left">Cliente</th>
+            <th class="text-left hidden-sm">Teléfono</th>
+            <th class="text-left hidden-sm">Ciudad</th>
             <th class="text-left">Observaciones</th>
             <th class="text-right">Total</th>
             <th class="text-right">Fecha</th>
@@ -196,6 +198,8 @@
             {{ value.nombrecliente }}
             <a href="{{ fsc.url()|raw }}&amp;codcliente={{ value.codcliente }}" class="cancel_clickable" title="Ver más {% if defined('FS_PEDIDOS') %}{{ constant('FS_PEDIDOS') }}{% endif %} de {{ value.nombrecliente }}">[+]</a>
          </td>
+         <td class="hidden-sm">{{ fsc.telefono_cliente(value.codcliente) }}</td>
+         <td class="hidden-sm">{{ value.ciudad }}</td>
          <td>{{ value.observaciones_resume() }}</td>
          <td class="text-right">{{ fsc.show_precio(value.total, value.coddivisa) }}</td>
          <td class="text-right">
@@ -206,15 +210,15 @@
       {% else %}
       <tr class="warning">
          <td></td>
-         <td colspan="6">Ningún {% if defined('FS_PEDIDO') %}{{ constant('FS_PEDIDO') }}{% endif %} encontrado. Pulsa el botón <b>Nuevo</b> para crear uno.</td>
+          <td colspan="8">Ningún {% if defined('FS_PEDIDO') %}{{ constant('FS_PEDIDO') }}{% endif %} encontrado. Pulsa el botón <b>Nuevo</b> para crear uno.</td>
       </tr>
       {% endfor %}
       {% if fsc.total_resultados != '' %}
       <tr>
-         <td colspan="5" class="text-right">
-            {{ fsc.total_resultados_txt }} &nbsp; <b>{{ fsc.show_precio(fsc.total_resultados) }}</b>
-         </td>
-         <td colspan="2"></td>
+          <td colspan="7" class="text-right">
+             {{ fsc.total_resultados_txt }} &nbsp; <b>{{ fsc.show_precio(fsc.total_resultados) }}</b>
+          </td>
+          <td colspan="2"></td>
       </tr>
       {% endif %}
    </table>
