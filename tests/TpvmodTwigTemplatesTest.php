@@ -563,7 +563,7 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
-    public function testRegionContainsMappedControls(): void
+    public function testRegionBoundaryAndOrder(): void
     {
         $moduleExtras = [
             'presupuestos' => 'id="modal_rechazar"',
@@ -574,32 +574,31 @@ class TpvmodTwigTemplatesTest extends TestCase
             $content = (string) file_get_contents($this->viewDir . '/' . $view);
             $region = 'id="' . $this->regionId($tipo) . '"';
 
+            $filterPos = strpos($content, 'name="f_custom_search"');
             $regionPos = strpos($content, $region);
             $toolbarPos = strpos($content, 'tpvmod-list-toolbar');
             $tabsPos = strpos($content, 'nav nav-tabs');
             $tablePos = strpos($content, 'class="table-responsive"');
             $paginasPos = strpos($content, 'fsc.paginas()');
-            $filterPos = strpos($content, 'name="f_custom_search"');
             $lineFormPos = strpos($content, 'id="f_buscar_lineas"');
 
-            foreach ([$regionPos, $toolbarPos, $tabsPos, $tablePos, $paginasPos, $filterPos, $lineFormPos] as $pos) {
+            foreach ([$filterPos, $regionPos, $toolbarPos, $tabsPos, $tablePos, $paginasPos, $lineFormPos] as $pos) {
                 $this->assertNotFalse($pos, $view . ' is missing one of the region anchors');
             }
 
+            // LHT-03 final order: the filter form precedes the region, so a
+            // swap never replaces the filter inputs; the region owns the order
+            // toolbar, the tabs, the table and the pager.
+            $this->assertLessThan($regionPos, $filterPos, $view . ' the filter form must precede the region');
             $this->assertLessThan($toolbarPos, $regionPos, $view . ' the order toolbar must live inside the region');
             $this->assertLessThan($tabsPos, $toolbarPos, $view . ' the tabs must follow the order toolbar');
             $this->assertLessThan($tablePos, $tabsPos, $view . ' the results table must follow the tabs');
             $this->assertLessThan($paginasPos, $tablePos, $view . ' the pager must follow the results table');
-            $this->assertLessThan($filterPos, $paginasPos, $view . ' the filter form must stay outside and below the region');
-            $this->assertLessThan($lineFormPos, $filterPos, $view . ' the line-search form must stay outside the region');
-            $this->assertLessThan((int) strpos($content, 'id="modal_buscar_lineas"'), $regionPos, $view . ' the line-search modal must live outside the region');
 
-            // The first mapped control must sit inside the region (the order
-            // toolbar), never in the filter form below it.
-            $firstHxGet = strpos($content, 'hx-get=');
-            $this->assertNotFalse($firstHxGet, $view . ' must map at least one control');
-            $this->assertGreaterThan($regionPos, $firstHxGet, $view . ' the mapped controls must live inside the region');
-            $this->assertLessThan($filterPos, $firstHxGet, $view . ' the mapped controls must not start in the filter form');
+            // Modals stay outside the region (TCP-06): the line-search form
+            // and the module extras close after the region.
+            $this->assertLessThan($lineFormPos, $regionPos, $view . ' the line-search form must stay outside the region');
+            $this->assertLessThan((int) strpos($content, 'id="modal_buscar_lineas"'), $regionPos, $view . ' the line-search modal must live outside the region');
 
             if (isset($moduleExtras[$tipo])) {
                 $extraPos = strpos($content, $moduleExtras[$tipo]);

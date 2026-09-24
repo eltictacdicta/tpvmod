@@ -76,6 +76,109 @@
    </div>
 </div>
 
+{% if fsc.mostrar == 'buscar' %}
+<br/>
+<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="get" class="form"
+      hx-get="{{ fsc.url() }}" hx-target="#tpvmod-presupuestos-region"
+      hx-select="#tpvmod-presupuestos-region" hx-swap="outerHTML"
+      hx-push-url="true" hx-trigger="submit">
+   <input type="hidden" name="mostrar" value="buscar"/>
+   <input type="hidden" name="order" value="{{ fsc.order|lower|replace({' ': '_'}) }}"/>
+   {% if fsc.cliente %}
+   <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
+   {% else %}
+   <input type="hidden" name="codcliente"/>
+   {% endif %}
+   <div class="container-fluid">
+      <div class="row">
+         <div class="col-sm-2">
+            <div class="form-group">
+               <div class="input-group">
+                  <input class="form-control" type="text" name="query" value="{{ fsc.query }}" autocomplete="off" placeholder="Buscar">
+                  <span class="input-group-btn">
+                     <button class="btn btn-primary hidden-sm" type="submit">
+                        <span class="glyphicon glyphicon-search"></span>
+                     </button>
+                  </span>
+               </div>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+                <select class="form-control" name="codserie"
+                        hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['codserie']) }}"
+                        hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
+                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+                  <option value="">Cualquier serie</option>
+                  <option value="">-----</option>
+                  {% for value in fsc.serie.all() %}
+                     {% if value.codserie == fsc.codserie %}
+                     <option value="{{ value.codserie }}" selected="">{{ value.descripcion }}</option>
+                     {% else %}
+                     <option value="{{ value.codserie }}">{{ value.descripcion }}</option>
+                     {% endif %}
+                  {% endfor %}
+               </select>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+                <select name="codagente" class="form-control"
+                        hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['codagente']) }}"
+                        hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
+                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+                  <option value="">Cualquier empleado</option>
+                  <option value="">------</option>
+                  {% for value in fsc.agente.all() %}
+                     {% if value.codagente == fsc.codagente %}
+                     <option value="{{ value.codagente }}" selected="">{{ value.get_fullname() }}</option>
+                     {% else %}
+                     <option value="{{ value.codagente }}">{{ value.get_fullname() }}</option>
+                     {% endif %}
+                  {% endfor %}
+               </select>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <div class="input-group">
+                  {% if fsc.cliente %}
+                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
+                  {% else %}
+                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
+                  {% endif %}
+                  <span class="input-group-btn">
+                     <button class="btn btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
+                        <span class="glyphicon glyphicon-edit"></span>
+                     </button>
+                     <button class="btn btn-default" type="button" onclick="clean_cliente()" title="Quitar filtro">
+                        <span class="glyphicon glyphicon-remove"></span>
+                     </button>
+                  </span>
+               </div>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off"
+                      hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['desde']) }}"
+                      hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
+                      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off"
+                      hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['hasta']) }}"
+                      hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
+                      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
+            </div>
+         </div>
+      </div>
+   </div>
+</form>
+{% endif %}
+
 <div id="tpvmod-presupuestos-region" x-data="tpvmodListado" x-bind:class="regionClass()">
    <div class="tpvmod-list-toolbar text-right">
       <div class="btn-group">
@@ -253,109 +356,6 @@
       </div>
    </div>
 </div>
-
-{% if fsc.mostrar == 'buscar' %}
-<br/>
-<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="get" class="form"
-      hx-get="{{ fsc.url() }}" hx-target="#tpvmod-presupuestos-region"
-      hx-select="#tpvmod-presupuestos-region" hx-swap="outerHTML"
-      hx-push-url="true" hx-trigger="submit">
-   <input type="hidden" name="mostrar" value="buscar"/>
-   <input type="hidden" name="order" value="{{ fsc.order|lower|replace({' ': '_'}) }}"/>
-   {% if fsc.cliente %}
-   <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
-   {% else %}
-   <input type="hidden" name="codcliente"/>
-   {% endif %}
-   <div class="container-fluid">
-      <div class="row">
-         <div class="col-sm-2">
-            <div class="form-group">
-               <div class="input-group">
-                  <input class="form-control" type="text" name="query" value="{{ fsc.query }}" autocomplete="off" placeholder="Buscar">
-                  <span class="input-group-btn">
-                     <button class="btn btn-primary hidden-sm" type="submit">
-                        <span class="glyphicon glyphicon-search"></span>
-                     </button>
-                  </span>
-               </div>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-                <select class="form-control" name="codserie"
-                        hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['codserie']) }}"
-                        hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
-                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
-                  <option value="">Cualquier serie</option>
-                  <option value="">-----</option>
-                  {% for value in fsc.serie.all() %}
-                     {% if value.codserie == fsc.codserie %}
-                     <option value="{{ value.codserie }}" selected="">{{ value.descripcion }}</option>
-                     {% else %}
-                     <option value="{{ value.codserie }}">{{ value.descripcion }}</option>
-                     {% endif %}
-                  {% endfor %}
-               </select>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-                <select name="codagente" class="form-control"
-                        hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['codagente']) }}"
-                        hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
-                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
-                  <option value="">Cualquier empleado</option>
-                  <option value="">------</option>
-                  {% for value in fsc.agente.all() %}
-                     {% if value.codagente == fsc.codagente %}
-                     <option value="{{ value.codagente }}" selected="">{{ value.get_fullname() }}</option>
-                     {% else %}
-                     <option value="{{ value.codagente }}">{{ value.get_fullname() }}</option>
-                     {% endif %}
-                  {% endfor %}
-               </select>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <div class="input-group">
-                  {% if fsc.cliente %}
-                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
-                  {% else %}
-                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
-                  {% endif %}
-                  <span class="input-group-btn">
-                     <button class="btn btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
-                        <span class="glyphicon glyphicon-edit"></span>
-                     </button>
-                     <button class="btn btn-default" type="button" onclick="clean_cliente()" title="Quitar filtro">
-                        <span class="glyphicon glyphicon-remove"></span>
-                     </button>
-                  </span>
-               </div>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off"
-                      hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['desde']) }}"
-                      hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
-                      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off"
-                      hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['hasta']) }}"
-                      hx-target="#tpvmod-presupuestos-region" hx-select="#tpvmod-presupuestos-region"
-                      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
-            </div>
-         </div>
-      </div>
-   </div>
-</form>
-{% endif %}
 
 <form class="form" role="form" id="f_buscar_lineas" name="f_buscar_lineas" action="{{ fsc.url()|raw }}" method="post"
       hx-post="{{ fsc.url() }}" hx-target="#search_results" hx-swap="innerHTML"
