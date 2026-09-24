@@ -84,28 +84,40 @@
          </button>
          <ul class="dropdown-menu dropdown-menu-right">
             <li>
-               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_desc">
+                <a href="{{ fsc.list_url({'order': 'fecha_desc', 'offset': 0}) }}"
+                   hx-get="{{ fsc.list_url({'order': 'fecha_desc', 'offset': 0}) }}"
+                   hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                   hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">
                   <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
                   &nbsp; Fecha &nbsp;
                   {% if fsc.order == 'fecha DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                </a>
             </li>
             <li>
-               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_asc">
+                <a href="{{ fsc.list_url({'order': 'fecha_asc', 'offset': 0}) }}"
+                   hx-get="{{ fsc.list_url({'order': 'fecha_asc', 'offset': 0}) }}"
+                   hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                   hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">
                   <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
                   &nbsp; Fecha &nbsp;
                   {% if fsc.order == 'fecha ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                </a>
             </li>
             <li>
-               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=vencimiento_desc">
+                <a href="{{ fsc.list_url({'order': 'vencimiento_desc', 'offset': 0}) }}"
+                   hx-get="{{ fsc.list_url({'order': 'vencimiento_desc', 'offset': 0}) }}"
+                   hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                   hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">
                   <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
                   &nbsp; Vencimiento &nbsp;
                   {% if fsc.order == 'vencimiento DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
                </a>
             </li>
             <li>
-               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=vencimiento_asc">
+                <a href="{{ fsc.list_url({'order': 'vencimiento_asc', 'offset': 0}) }}"
+                   hx-get="{{ fsc.list_url({'order': 'vencimiento_asc', 'offset': 0}) }}"
+                   hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                   hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">
                   <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
                   &nbsp; Vencimiento &nbsp;
                   {% if fsc.order == 'vencimiento ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
@@ -117,19 +129,28 @@
 
 <ul class="nav nav-tabs" role="tablist">
    <li{% if fsc.mostrar == 'todo' %} class="active"{% endif %}>
-      <a href="{{ fsc.url()|raw }}&amp;mostrar=todo">
+      <a href="{{ fsc.list_url({'mostrar': 'todo', 'offset': 0}) }}"
+         hx-get="{{ fsc.list_url({'mostrar': 'todo', 'offset': 0}) }}"
+         hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+         hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">
          Todas las {% if defined('FS_FACTURAS') %}{{ constant('FS_FACTURAS') }}{% endif %}
       </a>
    </li>
    <li{% if fsc.mostrar == 'sinpagar' %} class="active"{% endif %}>
-      <a href="{{ fsc.url()|raw }}&amp;mostrar=sinpagar">
+      <a href="{{ fsc.list_url({'mostrar': 'sinpagar', 'offset': 0}) }}"
+         hx-get="{{ fsc.list_url({'mostrar': 'sinpagar', 'offset': 0}) }}"
+         hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+         hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">
          <span class="glyphicon glyphicon-pushpin"></span>
          <span class="hidden-xs">&nbsp; Sin pagar</span>
          <span class="hidden-xs badge">{{ fsc.total_sinpagar() }}</span>
       </a>
    </li>
    <li{% if fsc.mostrar == 'buscar' %} class="active"{% endif %}>
-      <a href="{{ fsc.url()|raw }}&amp;mostrar=buscar" title="Buscar">
+      <a href="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}) }}"
+         hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}) }}"
+         hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+         hx-swap="outerHTML" hx-push-url="true" hx-trigger="click" title="Buscar">
          <span class="glyphicon glyphicon-search"></span>
          {% if fsc.num_resultados != '' %}
          <span class="hidden-xs badge">{{ fsc.num_resultados }}</span>
@@ -229,7 +250,10 @@
          <ul class="pagination">
             {% for value in fsc.paginas() %}
             <li{% if value['actual'] %} class="active"{% endif %}>
-               <a href="{{ value['url']|raw }}">{{ value['num'] }}</a>
+               <a href="{{ value['url']|raw }}"
+                  hx-get="{{ value['url'] }}"
+                  hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                  hx-swap="outerHTML" hx-push-url="true" hx-trigger="click">{{ value['num'] }}</a>
             </li>
             {% endfor %}
             </ul>
@@ -240,8 +264,12 @@
 
 {% if fsc.mostrar == 'buscar' %}
 <br/>
-<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="post" class="form">
-   {{ csrf_field() }}
+<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="get" class="form"
+      hx-get="{{ fsc.url() }}" hx-target="#tpvmod-facturas-region"
+      hx-select="#tpvmod-facturas-region" hx-swap="outerHTML"
+      hx-push-url="true" hx-trigger="submit">
+   <input type="hidden" name="mostrar" value="buscar"/>
+   <input type="hidden" name="order" value="{{ fsc.order|lower|replace({' ': '_'}) }}"/>
    {% if fsc.cliente %}
    <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
    {% else %}
@@ -263,7 +291,10 @@
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <select class="form-control" name="codserie" onchange="this.form.submit()">
+                <select class="form-control" name="codserie"
+                        hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['codserie']) }}"
+                        hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
                   <option value="">Cualquier serie</option>
                   <option value="">-----</option>
                   {% for value in fsc.serie.all() %}
@@ -278,7 +309,10 @@
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <select name="codagente" class="form-control" onchange="this.form.submit()">
+                <select name="codagente" class="form-control"
+                        hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['codagente']) }}"
+                        hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
                   <option value="">Cualquier empleado</option>
                   <option value="">------</option>
                   {% for value in fsc.agente.all() %}
@@ -312,12 +346,18 @@
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off" onchange="this.form.submit()"/>
+               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off"
+                      hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['desde']) }}"
+                      hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
             </div>
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off" onchange="this.form.submit()"/>
+               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off"
+                      hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['hasta']) }}"
+                      hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                      hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
             </div>
          </div>
       </div>

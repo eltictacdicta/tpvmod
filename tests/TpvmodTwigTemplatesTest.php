@@ -38,6 +38,22 @@ class TpvmodTwigTemplatesTest extends TestCase
         'pedidos' => 'ajax/ventas_lineas_pedidos.html.twig',
     ];
 
+    /** @var array<string, list<string>> module key => tab tokens (LHT-04) */
+    private const MODULE_TABS = [
+        'presupuestos' => ['todo', 'pendientes', 'rechazados', 'buscar'],
+        'facturas' => ['todo', 'sinpagar', 'buscar'],
+        'albaranes' => ['todo', 'pendientes', 'buscar'],
+        'pedidos' => ['todo', 'pendientes', 'rechazados', 'buscar'],
+    ];
+
+    /** @var array<string, list<string>> module key => order tokens (LHT-04) */
+    private const MODULE_ORDER_TOKENS = [
+        'presupuestos' => ['fecha_desc', 'fecha_asc', 'codigo_desc', 'codigo_asc'],
+        'facturas' => ['fecha_desc', 'fecha_asc', 'vencimiento_desc', 'vencimiento_asc'],
+        'albaranes' => ['fecha_desc', 'fecha_asc', 'codigo_desc', 'codigo_asc'],
+        'pedidos' => ['fecha_desc', 'fecha_asc', 'codigo_desc', 'codigo_asc'],
+    ];
+
     private string $pluginDir;
 
     private string $viewDir;
@@ -421,6 +437,7 @@ class TpvmodTwigTemplatesTest extends TestCase
         foreach (self::LISTING_TEMPLATES as $tipo => $view) {
             $content = (string) file_get_contents($this->viewDir . '/' . $view);
             $regionId = $this->regionId($tipo);
+            $region = '#' . $regionId;
 
             $this->assertSame(
                 1,
@@ -428,6 +445,121 @@ class TpvmodTwigTemplatesTest extends TestCase
                 $view . ' must declare exactly one #' . $regionId
             );
             $this->assertStringContainsString('x-data="tpvmodListado"', $content, $view);
+
+            // LHT-01 control half: every mapped control points at the region
+            // through the same four attributes, so no control can drift and
+            // replace the whole page instead of the region.
+            $targets = substr_count($content, 'hx-target="' . $region . '"');
+            $this->assertGreaterThan(0, $targets, $view . ' must map at least one control onto the region');
+            $this->assertSame($targets, substr_count($content, 'hx-select="' . $region . '"'), $view . ' hx-select must mirror hx-target');
+            $this->assertSame($targets, substr_count($content, 'hx-swap="outerHTML"'), $view . ' every region swap must be outerHTML');
+            $this->assertSame($targets, substr_count($content, 'hx-push-url="true"'), $view . ' every region swap must push the URL');
+        }
+    }
+
+    public function testControlToUrlMapping(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            // The filter form posts no token and carries the non-form-derived
+            // state as hidden fields (AD-7, §3.2).
+            $this->assertStringContainsString('method="get"', $content, $view);
+            $this->assertStringContainsString('hx-get="{{ fsc.url() }}"', $content, $view);
+            $this->assertStringContainsString('hx-trigger="submit"', $content, $view);
+            $this->assertStringContainsString('<input type="hidden" name="mostrar" value="buscar"/>', $content, $view);
+            $this->assertStringContainsString('<input type="hidden" name="order"', $content, $view);
+
+            // Each filter owns its key in the base URL; htmx appends the
+            // element's own value (AD-4), so the query key stays single.
+            foreach (['codserie', 'codagente', 'desde', 'hasta'] as $key) {
+                $this->assertStringContainsString(
+                    "hx-get=\"{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['" . $key . "']) }}\"",
+                    $content,
+                    $view . ' must map the ' . $key . ' filter with its own key omitted'
+                );
+            }
+            $this->assertSame(
+                4,
+                substr_count($content, 'hx-trigger="change"'),
+                $view . ' must bind the four filter change triggers'
+            );
+
+            foreach (self::MODULE_TABS[$tipo] as $tab) {
+                $this->assertStringContainsString(
+                    "hx-get=\"{{ fsc.list_url({'mostrar': '" . $tab . "', 'offset': 0}) }}\"",
+                    $content,
+                    $view . ' must map the ' . $tab . ' tab'
+                );
+            }
+
+            foreach (self::MODULE_ORDER_TOKENS[$tipo] as $token) {
+                $this->assertStringContainsString(
+                    "hx-get=\"{{ fsc.list_url({'order': '" . $token . "', 'offset': 0}) }}\"",
+                    $content,
+                    $view . ' must map the ' . $token . ' order token'
+                );
+            }
+
+            // Pagination reuses the server-built pager URL for href and hx-get.
+            $this->assertStringContainsString('hx-get="{{ value[\'url\'] }}"', $content, $view);
+
+            // Forbidden htmx surface: hx-params does not exist in the vendored
+            // htmx 4, and hx-include would duplicate keys (AD-4).
+            $this->assertStringNotContainsString('hx-params', $content, $view);
+            $this->assertStringNotContainsString('hx-include', $content, $view);
+        }
+
+        // Repo-wide guard: hx-params must not appear anywhere in the plugin.
+        foreach ($this->pluginSourceFiles() as $path) {
+            $content = (string) file_get_contents($path);
+            $this->assertStringNotContainsString('hx-params', $content, $path);
+        }
+    }
+
+    public function testRegionContainsMappedControls(): void
+    {
+        $moduleExtras = [
+            'presupuestos' => 'id="modal_rechazar"',
+            'facturas' => 'id="modal_huecos"',
+        ];
+
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+            $region = 'id="' . $this->regionId($tipo) . '"';
+
+            $regionPos = strpos($content, $region);
+            $toolbarPos = strpos($content, 'tpvmod-list-toolbar');
+            $tabsPos = strpos($content, 'nav nav-tabs');
+            $tablePos = strpos($content, 'class="table-responsive"');
+            $paginasPos = strpos($content, 'fsc.paginas()');
+            $filterPos = strpos($content, 'name="f_custom_search"');
+            $lineFormPos = strpos($content, 'id="f_buscar_lineas"');
+
+            foreach ([$regionPos, $toolbarPos, $tabsPos, $tablePos, $paginasPos, $filterPos, $lineFormPos] as $pos) {
+                $this->assertNotFalse($pos, $view . ' is missing one of the region anchors');
+            }
+
+            $this->assertLessThan($toolbarPos, $regionPos, $view . ' the order toolbar must live inside the region');
+            $this->assertLessThan($tabsPos, $toolbarPos, $view . ' the tabs must follow the order toolbar');
+            $this->assertLessThan($tablePos, $tabsPos, $view . ' the results table must follow the tabs');
+            $this->assertLessThan($paginasPos, $tablePos, $view . ' the pager must follow the results table');
+            $this->assertLessThan($filterPos, $paginasPos, $view . ' the filter form must stay outside and below the region');
+            $this->assertLessThan($lineFormPos, $filterPos, $view . ' the line-search form must stay outside the region');
+            $this->assertLessThan((int) strpos($content, 'id="modal_buscar_lineas"'), $regionPos, $view . ' the line-search modal must live outside the region');
+
+            // The first mapped control must sit inside the region (the order
+            // toolbar), never in the filter form below it.
+            $firstHxGet = strpos($content, 'hx-get=');
+            $this->assertNotFalse($firstHxGet, $view . ' must map at least one control');
+            $this->assertGreaterThan($regionPos, $firstHxGet, $view . ' the mapped controls must live inside the region');
+            $this->assertLessThan($filterPos, $firstHxGet, $view . ' the mapped controls must not start in the filter form');
+
+            if (isset($moduleExtras[$tipo])) {
+                $extraPos = strpos($content, $moduleExtras[$tipo]);
+                $this->assertNotFalse($extraPos, $view . ' is missing ' . $moduleExtras[$tipo]);
+                $this->assertLessThan($extraPos, $regionPos, $view . ' ' . $moduleExtras[$tipo] . ' must stay outside the region');
+            }
         }
     }
 
