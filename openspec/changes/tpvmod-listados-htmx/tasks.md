@@ -10,8 +10,10 @@
 > specs (`listados-htmx` LHT-01..LHT-12, `views`, `tpv-cliente-modales`),
 > `exploration.md` (F1–F10) and `decisions-pending.md` (D1–D7, confirmed).
 >
-> **Status:** planning only — no production code written. Every checkbox below is
-> **pending** (`- [ ]`).
+> **Status:** PR1 (U1–U10) applied on branch `feat/tpvmod-listados-htmx-pr1`;
+> see `apply-progress.md`. U1–U9 and the U10 suite/phpstan bullets are done; the
+> U10 manual smoke stays pending for `sdd-verify`. PR2 (U11+) and PR3 (U16+)
+> checkboxes are still **pending** (`- [ ]`).
 
 ## Execution rules (mandatory)
 
@@ -133,9 +135,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 2 files · ~70 prod + ~90 test |
 
 **TDD — RED first**
-- [ ] RED — write `testSearchTermDecodesFrameworkEscape` (`O&#039;Brien` → `o'brien`), `testSearchPredicateMatchesDocumentAndClientFields` (emits `lower(codigo)/lower(numero2)/lower(observaciones)` + `codcliente IN (SELECT codcliente FROM clientes …)` on the 4 live columns), `testSearchPredicateEscapesQuotes` (with escaper `fn($v) => "'".str_replace("'","''",$v)."'"`, `O'Brien` emits an escaped literal; **no** `&#39;`/`&lt;`/`&gt;`/`&amp;`; `<script>` appears raw inside the quoted literal), `testSearchPredicateHasNoCifnif`, `testSearchPredicateEmptyTerm` (`''` ⇒ `''`). Run → fail (functions missing). |
-- [ ] GREEN — create `lib/tpvmod_listados.php` (`declare(strict_types=1)`, no namespace, no DB/Twig refs) with the two functions per design §1.3/§1.4. The `is_numeric()` branch is **not** re-added. |
-- [ ] REFACTOR — extract the test escaper factory; keep signatures byte-identical to `design.md` §1. |
+- [x] RED — write `testSearchTermDecodesFrameworkEscape` (`O&#039;Brien` → `o'brien`), `testSearchPredicateMatchesDocumentAndClientFields` (emits `lower(codigo)/lower(numero2)/lower(observaciones)` + `codcliente IN (SELECT codcliente FROM clientes …)` on the 4 live columns), `testSearchPredicateEscapesQuotes` (with escaper `fn($v) => "'".str_replace("'","''",$v)."'"`, `O'Brien` emits an escaped literal; **no** `&#39;`/`&lt;`/`&gt;`/`&amp;`; `<script>` appears raw inside the quoted literal), `testSearchPredicateHasNoCifnif`, `testSearchPredicateEmptyTerm` (`''` ⇒ `''`). Run → fail (functions missing). |
+- [x] GREEN — create `lib/tpvmod_listados.php` (`declare(strict_types=1)`, no namespace, no DB/Twig refs) with the two functions per design §1.3/§1.4. The `is_numeric()` branch is **not** re-added. |
+- [x] REFACTOR — extract the test escaper factory; keep signatures byte-identical to `design.md` §1. |
 
 **Verificación:** emitted SQL is asserted directly for a quote-bearing term; empty term emits no predicate; `cifnif` absent.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodListadosHelpersTest`
@@ -151,9 +153,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 2 files · ~35 prod + ~60 test |
 
 **TDD — RED first**
-- [ ] RED — `testListUrlCarriesEveryFilterAndEncodesSpecialChars` (a `query`/`codcliente` value with `&`, `#`, spaces is encoded, the other filters survive), `testBuildListUrlEncodesAndDropsEmpty`, `testBuildListUrlKeepsZero` (`0`/`'0'` are not dropped; only `null`/`''` are), `testOrderTokenFor` (`fecha_desc`↔`fecha DESC`, facturas `vencimiento_*`, unknown → `fecha_desc`). Run → fail. |
-- [ ] GREEN — implement both helpers. |
-- [ ] REFACTOR — assert key order explicitly. |
+- [x] RED — `testListUrlCarriesEveryFilterAndEncodesSpecialChars` (a `query`/`codcliente` value with `&`, `#`, spaces is encoded, the other filters survive), `testBuildListUrlEncodesAndDropsEmpty`, `testBuildListUrlKeepsZero` (`0`/`'0'` are not dropped; only `null`/`''` are), `testOrderTokenFor` (`fecha_desc`↔`fecha DESC`, facturas `vencimiento_*`, unknown → `fecha_desc`). Run → fail. |
+- [x] GREEN — implement both helpers. |
+- [x] REFACTOR — assert key order explicitly. |
 
 **Verificación:** encoded URL is the single source for both `href` and `hx-get`/`hx-push-url` (LHT-11).
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodListadosHelpersTest`
@@ -169,9 +171,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 2 files · ~25 prod + ~45 test |
 
 **TDD — RED first**
-- [ ] RED — `testPagerLinksBoundsAndPrunes` (first/last/middle/current ±5; URLs come from the injected `$urlForOffset` callable), `testPagerLinksEmptyWhenSinglePage`. Run → fail. |
-- [ ] GREEN — implement `tpvmod_pager_links()`. |
-- [ ] REFACTOR — no behavior change; keep the callback signature `callable(int): string`. |
+- [x] RED — `testPagerLinksBoundsAndPrunes` (first/last/middle/current ±5; URLs come from the injected `$urlForOffset` callable), `testPagerLinksEmptyWhenSinglePage`. Run → fail. |
+- [x] GREEN — implement `tpvmod_pager_links()`. |
+- [x] REFACTOR — no behavior change; keep the callback signature `callable(int): string`. |
 
 **Verificación:** page list and count identical to the legacy loop; empty on a single page.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodListadosHelpersTest`
@@ -187,9 +189,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 2 files · ~30 prod + ~60 test |
 
 **TDD — RED first**
-- [ ] RED — `testPhoneMapPrefersTelefono1`, `testPhoneMapFallsBackToTelefono2`, `testPhoneMapEmptyPhones`, `testPhoneMapSkipsFetchForEmptySet` (assert the injected fetcher is **never** called on an all-empty/all-duplicate set — covers the "no N+1 / zero query" clause). Run → fail. |
-- [ ] GREEN — implement both helpers with the injected `callable(list<string>): array`. |
-- [ ] REFACTOR — assert the dedupe ordering. |
+- [x] RED — `testPhoneMapPrefersTelefono1`, `testPhoneMapFallsBackToTelefono2`, `testPhoneMapEmptyPhones`, `testPhoneMapSkipsFetchForEmptySet` (assert the injected fetcher is **never** called on an all-empty/all-duplicate set — covers the "no N+1 / zero query" clause). Run → fail. |
+- [x] GREEN — implement both helpers with the injected `callable(list<string>): array`. |
+- [x] REFACTOR — assert the dedupe ordering. |
 
 **Verificación:** exactly one fetch call for a page set; one value per row; blank when neither phone is set.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodListadosHelpersTest`
@@ -205,9 +207,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 2 files · ~20 prod + ~40 test |
 
 **TDD — RED first**
-- [ ] RED — `testNormalizeDateAcceptsIsoAndDmY`, `testNormalizeDateRejectsEmptyAndInvalid` (`''`, garbage, `99-99-9999`), `testNormalizeDateParityWithHtmlFilter` (`FE::date_iso`/`dateIsoValue()` parity for the same stored `d-m-Y` value, no new Twig filter). Run → fail. |
-- [ ] GREEN — implement `tpvmod_normalize_date()`. |
-- [ ] REFACTOR — do **not** add any `var2str`-only path; the helper returns the canonical `Y-m-d`. |
+- [x] RED — `testNormalizeDateAcceptsIsoAndDmY`, `testNormalizeDateRejectsEmptyAndInvalid` (`''`, garbage, `99-99-9999`), `testNormalizeDateParityWithHtmlFilter` (`FE::date_iso`/`dateIsoValue()` parity for the same stored `d-m-Y` value, no new Twig filter). Run → fail. |
+- [x] GREEN — implement `tpvmod_normalize_date()`. |
+- [x] REFACTOR — do **not** add any `var2str`-only path; the helper returns the canonical `Y-m-d`. |
 
 **Verificación:** invalid input yields `''` (⇒ no date predicate); ISO output matches the `date` column.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodListadosHelpersTest`
@@ -223,9 +225,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~90–130 prod + ~40 test |
 
 **TDD — RED first**
-- [ ] RED — add `testListingControllersUseSharedSearchHelper`: each controller contains `tpvmod_search_term(` **and** `tpvmod_build_search_predicate(`, **no** `no_html(` inside `buscar()`, and `tpvmod_normalize_date(` for `desde`/`hasta`. Add/extend `testListingControllersGateCronAndBuildUrls` with: each controller uses `list_url(` and `paginas()` carries no raw `"&query="`/`"&mostrar="` concatenation. Extend `testControlToUrlMapping`-adjacent assertions only where they pass in PR1 (there are none — URL mapping is PR2). Run → fail. |
-| [ ] GREEN — implement the façade and the `buscar()` text block exactly per design §1.5/§1.6; leave `codagente`/`codcliente`/`codserie`/`desde`/`hasta`, `COUNT`, `select_limit`, `SELECT *`, `SUM(total)` and the facturas `SUM(neto*porcomision/100)` query shape **unchanged**. |
-- [ ] REFACTOR — keep the four `list_total()` switches module-local; only the arithmetic is shared. |
+- [x] RED — add `testListingControllersUseSharedSearchHelper`: each controller contains `tpvmod_search_term(` **and** `tpvmod_build_search_predicate(`, **no** `no_html(` inside `buscar()`, and `tpvmod_normalize_date(` for `desde`/`hasta`. Add/extend `testListingControllersGateCronAndBuildUrls` with: each controller uses `list_url(` and `paginas()` carries no raw `"&query="`/`"&mostrar="` concatenation. Extend `testControlToUrlMapping`-adjacent assertions only where they pass in PR1 (there are none — URL mapping is PR2). Run → fail. |
+| [x] GREEN — implement the façade and the `buscar()` text block exactly per design §1.5/§1.6; leave `codagente`/`codcliente`/`codserie`/`desde`/`hasta`, `COUNT`, `select_limit`, `SELECT *`, `SUM(total)` and the facturas `SUM(neto*porcomision/100)` query shape **unchanged**. |
+- [x] REFACTOR — keep the four `list_total()` switches module-local; only the arithmetic is shared. |
 
 **Verificación:** the four controllers delegate to the shared search/URL/pager/date helpers; no module carries an independent copy (LHT-11 "share the helpers").
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -241,9 +243,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~40–60 prod + ~20 test |
 
 **TDD — RED first**
-- [ ] RED — `testListingControllersUseBatchedPhoneLookup`: each controller contains `FROM clientes` inside a single `IN (` lookup and exposes `telefono_cliente(`. Run → fail. |
-| [ ] GREEN — implement `telefonos_pagina()` on top of `tpvmod_phone_map()` with `fn($v) => $this->var2str($v)` for the `IN` list. |
-| [ ] REFACTOR — memoize per request (`$telefonos_map === null`); no query when `resultados` is empty. |
+- [x] RED — `testListingControllersUseBatchedPhoneLookup`: each controller contains `FROM clientes` inside a single `IN (` lookup and exposes `telefono_cliente(`. Run → fail. |
+| [x] GREEN — implement `telefonos_pagina()` on top of `tpvmod_phone_map()` with `fn($v) => $this->var2str($v)` for the `IN` list. |
+| [x] REFACTOR — memoize per request (`$telefonos_map === null`); no query when `resultados` is empty. |
 
 **Verificación:** one lookup per page; accessor returns `''` on a map miss.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -259,9 +261,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 3 files · ~10–14 prod + ~20 test |
 
 **TDD — RED first**
-- [ ] RED — extend `testListingControllersGateCronAndBuildUrls` to assert, for **both** `tpvmod_presupuestos.php` and `tpvmod_pedidos.php`, that `isHtmxRequest` appears adjacent to the `cron_job()` call; assert `tpvmod_facturas.php`/`tpvmod_albaranes.php` contain no `cron_job(`. Add `testNoLocalHtmxDetectionHelper`: grep the plugin (`.php`/`.twig`) for `is_htmx_request`/`tpvmod_is_htmx_request` → absent, and the gate reads `isHtmxRequest()`. Run → fail. |
-- [ ] GREEN — wrap each `cron_job()` call in `if (!$this->isHtmxRequest()) { … }`. |
-- [ ] REFACTOR — none. |
+- [x] RED — extend `testListingControllersGateCronAndBuildUrls` to assert, for **both** `tpvmod_presupuestos.php` and `tpvmod_pedidos.php`, that `isHtmxRequest` appears adjacent to the `cron_job()` call; assert `tpvmod_facturas.php`/`tpvmod_albaranes.php` contain no `cron_job(`. Add `testNoLocalHtmxDetectionHelper`: grep the plugin (`.php`/`.twig`) for `is_htmx_request`/`tpvmod_is_htmx_request` → absent, and the gate reads `isHtmxRequest()`. Run → fail. |
+- [x] GREEN — wrap each `cron_job()` call in `if (!$this->isHtmxRequest()) { … }`. |
+- [x] REFACTOR — none. |
 
 **Verificación:** non-htmx full page load still runs `cron_job()`; htmx swap does not. **This is the highest-risk gate (R2)** — the smoke step in PR1's verify records the DB/log observation.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -277,9 +279,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 2 files · ~8–12 prod + ~15 test |
 
 **TDD — RED first**
-- [ ] RED — `testFacturasLineSearchPassesOffset`: the controller keeps `$this->template = 'ajax/ventas_lineas_facturas'` and calls both model searches with `$this->offset`. Run → fail. |
-| [ ] GREEN — add the offset argument to both calls. |
-| [ ] REFACTOR — none. |
+- [x] RED — `testFacturasLineSearchPassesOffset`: the controller keeps `$this->template = 'ajax/ventas_lineas_facturas'` and calls both model searches with `$this->offset`. Run → fail. |
+| [x] GREEN — add the offset argument to both calls. |
+| [x] REFACTOR — none. |
 
 **Verificación:** facturas has offset/pager parity; the model signatures (`linea_factura_cliente.php:390,423`) stay untouched (cross-plugin out of scope).
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -294,9 +296,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Cubre** | LHT-12 (T: the H suite + existing suites stay green) |
 | **Est.** | 0 files |
 
-- [ ] Run the full plugin suite: `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → all green, incl. `TpvmodModulesTest`, `TpvmodOpcionalRapidoTest` (dispatch ordering in `tpvmod.php` untouched) and the retained `tpvmod_cliente_ajax_dispatch`.
-- [ ] Run `ddev exec composer phpstan` → clean.
-- [ ] Smoke (recorded in `verify-report.md`): a full non-htmx load still executes `cron_job()` (DB/log observation); pagination/filter URLs are byte-identical to the pre-change output for the same state.
+- [x] Run the full plugin suite: `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → all green, incl. `TpvmodModulesTest`, `TpvmodOpcionalRapidoTest` (dispatch ordering in `tpvmod.php` untouched) and the retained `tpvmod_cliente_ajax_dispatch`. **PR1 result: OK (167 tests, 859 assertions).**
+- [x] Run `ddev exec composer phpstan` → clean. **PR1 result: no NEW errors. One error remains, pre-existing and unrelated (`tests/Core/PluginEnableAjaxSafetyTest.php:308`, present on `master` before PR1); PHPStan only analyses `src` + `tests`, not `plugins/tpvmod`.**
+- [ ] Smoke (recorded in `verify-report.md`): a full non-htmx load still executes `cron_job()` (DB/log observation); pagination/filter URLs are byte-identical to the pre-change output for the same state. **Delegated to `sdd-verify`: the browser smoke needs an authenticated agent session (`config.yaml` smoke flow). PR1's runtime evidence is a DB-backed CLI harness (see `apply-progress.md`): the real `fs_controller::isHtmxRequest()` returns false without `HX-Request` (cron runs) and true with it (cron skipped); the shared URL builder now drops empty filters and adds `order`, so the rendered pagination URL is NOT byte-identical to the legacy concatenation — same state resolves to the same result set (documented deviation).**
 
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml && ddev exec composer phpstan`
 
