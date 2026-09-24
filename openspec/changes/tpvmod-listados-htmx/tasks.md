@@ -12,9 +12,9 @@
 >
 > **Status:** PR1 (U1–U10) applied on branch `feat/tpvmod-listados-htmx-pr1`;
 > see `apply-progress.md`. PR2 lives on `feat/tpvmod-listados-htmx-pr2`:
-> **U11–U13 are applied** (`61bfae1`, `7843685`, `37ac3ee`); **U14–U15 remain
-> pending** (`- [ ]`). PR3 (U16+) checkboxes are still **pending**. The U10
-> manual smoke and the PR2 per-module smoke stay pending for `sdd-verify`.
+> **U11–U15 are applied** (`61bfae1`, `7843685`, `37ac3ee`, `66b6cb1`).
+> PR3 (U16+) checkboxes are still **pending**. The U10 manual smoke and the
+> PR2 per-module browser smoke stay pending for `sdd-verify`.
 
 ## Execution rules (mandatory)
 
@@ -326,7 +326,7 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 - [x] GREEN — implement the macro imports, boot calls and the region wrapper for all four; **delete the inline `buscar_lineas()` and `mas_resultados()`** and the `#b_buscar_lineas`/`#f_buscar_lineas` jQuery bindings (keep `clean_cliente()` and the `query` focus for PR3). Keep modals **outside** the region. |
 - [x] REFACTOR — one Alpine component name (`tpvmodListado`) for all four; no list state in Alpine. |
 - [x] Verified — Twig compile harness: all 4 listings + 4 fragments `OK`; plugin suite `OK (169 tests, 907 assertions)`. **U11 committed as `61bfae1` (1370 changed lines).** |
-- [x] **U12–U13 applied** (`7843685`, `37ac3ee`; 507 changed lines, within the 800 budget). **U14–U15 still withheld** by the PR2 budget guard pending the maintainer's `size:exception` decision. See `apply-progress.md` → "PR2 budget escalation". |
+- [x] **U12–U13 applied** (`7843685`, `37ac3ee`; 507 changed lines, within the 800 budget). **U14–U15 applied** (`66b6cb1`; 101 changed lines). See `apply-progress.md` → "PR2 batch". |
 
 **Verificación:** one opt-in import per view; exactly one swap listener per view; marker guards present.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -380,9 +380,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~120–180 prod + ~40 test |
 
 **TDD — RED first**
-- [ ] RED — extend `testLineSearchFragmentContract`: each fragment has `hx-post` + `hx-vals` `offset` (facturas included); the marker is absent from all four; alerts use `<div>` not bare `<li>`. Run → fail. |
-- [ ] GREEN — implement the four fragments per design §5.3; the step is `fsc.lineas|length` (reproduces the legacy arithmetic exactly). |
-| [ ] REFACTOR — no `beforeend` append (TCP-03 gap G1: replace semantics only). |
+- [x] RED — extended `testLineSearchFragmentContract` with the fragment half: each fragment has `hx-post` + `hx-vals` `offset` (facturas included); the marker is absent from all four; alerts use `<div>` not bare `<li>`; no `mas_resultados(`/`onclick=`. Run → failed: the marker was still present in all four fragments.
+- [x] GREEN — implemented the four fragments per design §5.3; the step is `fsc.lineas|length` (reproduces the legacy arithmetic exactly). Results: `--filter testLineSearchFragmentContract` → `OK (1 test, 100 assertions)`; plugin suite `OK (172 tests, 1215 assertions)`; throwaway Twig compile harness over the four fragments → `TWIG LINT OK`; throwaway render harness with a stub `fsc` → `U14 RENDER HARNESS OK` (8/8: offset 0 → next `{"offset": 8}` no previous; offset 24 → prev 16 / next 32; partial page → prev 1, no next; alerts as `<div>`; marker absent).
+- [x] REFACTOR — no `beforeend` append (TCP-03 gap G1: replace semantics only); the pager replaces `#search_results` through `hx-swap="innerHTML"`.
 
 **Verificación:** prev/next post the server-computed offset; the four fragments are well-formed and marker-free.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -397,9 +397,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Cubre** | LHT-12; TCP-09 |
 | **Est.** | 0 files |
 
-- [ ] `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → green.
-- [ ] `ddev exec composer phpstan` → clean.
-- [ ] Smoke per module (recorded in `verify-report.md`): tabs/order/pagination/filters swap only the region and push the URL; JS disabled returns the full page; tab switch re-inits Alpine exactly once (no duplicate-registration warning); delegated `tr.clickableRow[href]` and Bootstrap `data-toggle` still work after a swap; the line search debounces, pages prev/next and rejects an invalid token; `cron_job()` does not run on swaps (DB/log observation).
+- [x] `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → green. **PR2 result: `OK (172 tests, 1215 assertions)`** (fragment half added 48 assertions; no test count change).
+- [x] `ddev exec composer phpstan` → clean. **PR2 result: no NEW errors. The one remaining error is pre-existing and byte-identical to the baseline (`tests/Core/PluginEnableAjaxSafetyTest.php:308`); PHPStan only analyses `src` + `tests`, never `plugins/tpvmod`.**
+- [ ] Smoke per module (recorded in `verify-report.md`): tabs/order/pagination/filters swap only the region and push the URL; JS disabled returns the full page; tab switch re-inits Alpine exactly once (no duplicate-registration warning); delegated `tr.clickableRow[href]` and Bootstrap `data-toggle` still work after a swap; the line search debounces, pages prev/next and rejects an invalid token; `cron_job()` does not run on swaps (DB/log observation). **Delegated to `sdd-verify`: the browser smoke needs an authenticated agent session (`config.yaml` smoke flow). The assertable parts are covered here: the U14 render harness proves the server-computed prev/next offsets; the static audit confirms `clickableRow` (1×/listing), `data-toggle` (modals) and `fsc.paginas()` (1×/listing, inside the region) survive; `method="get"`/`method="post"` + `{{ csrf_field() }}` preserve the no-JS path (pinned by tests).**
 
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml && ddev exec composer phpstan`
 

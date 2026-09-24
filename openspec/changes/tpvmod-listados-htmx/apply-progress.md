@@ -3,8 +3,7 @@
 > **Plugin-local SDD.** Change root: `plugins/tpvmod/openspec/changes/tpvmod-listados-htmx/`.
 > Core `openspec/` is intentionally NOT touched.
 > Artifact store: OpenSpec (plugin-local). Batches: **PR1 (U1–U10, complete)** and
-> **PR2 (U11–U13 done; U14–U15 withheld by the review-budget guard — see the PR2
-> section at the end)**.
+> **PR2 (U11–U15 complete)** — see the PR1 section and the two PR2 sections at the end.
 
 ## Status
 
@@ -430,3 +429,170 @@ wired until U14.
 withheld** by the review-budget guard: `size:exception` or a re-slice decision is required
 before this batch resumes. `phpstan`: no new errors. Suite green at `37ac3ee`
 (`OK (172 tests, 1167 assertions)`).
+
+> **Superseded by the U14–U15 section below.** The withheld U14–U15 units were resumed and
+> applied on the same branch; the paragraph above is kept for the log history only.
+
+---
+
+# PR2 batch (U14–U15) — apply-progress
+
+> Continues the PR2 batch on the same branch `feat/tpvmod-listados-htmx-pr2`, from the
+> prior tip `5b55529`. Nested `plugins/tpvmod` repo only; the core repo is untouched.
+> Not pushed; no PR opened. PR2 is now **complete** (U11–U15).
+
+## Status
+
+| Field | Value |
+|---|---|
+| Mode | **Strict TDD** (`strict_tdd: true`) |
+| Batch | PR2 — U14 (line-search fragments) + U15 (gate) |
+| Units completed | **U14–U15** (`66b6cb1`, plus this docs commit) |
+| Branch | `feat/tpvmod-listados-htmx-pr2`; base tip before this slice `5b55529` |
+| Slice size | **101 changed lines** (`+83 / −18`, measured `5b55529..66b6cb1`) — within the 800-line budget |
+| Final plugin suite | `OK (172 tests, 1215 assertions)` |
+| `phpstan` | **No new errors** (1 pre-existing, byte-identical to the baseline) |
+| Twig compile harness | the 4 fragments → `TWIG LINT OK` |
+| Render harness | `U14 RENDER HARNESS OK` (8/8) |
+| Authenticated browser smoke | **delegated to `sdd-verify`** (needs an agent session) |
+
+## Units
+
+| Unit | Goal | Status |
+|---|---|---|
+| U14 | Line-search fragments: marker removed, server-computed offset pager, well-formed alerts; facturas gains the pager | ✅ `66b6cb1` |
+| U15 | PR2 gate: plugin suite + `phpstan` + per-module smoke | ✅ suite + `phpstan` + static/harness evidence; authenticated browser smoke delegated to `sdd-verify` |
+
+## Files changed (U14)
+
+| File | Action | What was done | Lines |
+|---|---|---|---|
+| `view/ajax/ventas_lineas_presupuestos.html.twig` | modified | marker removed; alerts `<li>`→`<div>`; pager `onclick="mas_resultados(±N)"` → `hx-post` + `hx-vals` offset | +10 / −5 |
+| `view/ajax/ventas_lineas_albaranes.html.twig` | modified | same | +10 / −5 |
+| `view/ajax/ventas_lineas_pedidos.html.twig` | modified | same | +10 / −5 |
+| `view/ajax/ventas_lineas_facturas.html.twig` | modified | same **plus the missing pager added** | +27 / −3 |
+| `tests/TpvmodTwigTemplatesTest.php` | modified | `testLineSearchFragmentContract` extended with the fragment half | +26 |
+
+No controller, `lib/`, listing template or Composer dependency was touched. The legacy fragment
+contract is intact: `$this->template = 'ajax/ventas_lineas_<tipo>'`, the same endpoint
+(`hx-post="{{ fsc.url() }}"`) and the same params (`buscar_lineas`, `buscar_lineas_o`,
+`codcliente`, `offset`). `search_from_cliente2` by `codcliente` untouched. No `hx-params`.
+
+## TDD Cycle Evidence (Hard Gate — Strict TDD)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| U14 | `TpvmodTwigTemplatesTest.php` | Contract (source, DB-free) | ✅ 172/172 @ `5b55529` | ✅ Written; run failed (marker present in all four fragments) | ✅ Passed (`--filter testLineSearchFragmentContract` → `OK (1 test, 100 assertions)`; full suite `OK (172 tests, 1215 assertions)`) | ✅ 8/8 render harness cases across 3 modules: offset 0, offset 24, partial last page; facturas included; alerts `<div>`; marker absent | ✅ dropped the client arithmetic for the design §5.3 `hx-vals` shape; no `beforeend` append |
+
+### Work Unit Evidence (Hard Gate — all modes)
+
+| Unit | Focused test command + exact result | Runtime harness command/scenario + exact result | Rollback boundary |
+|---|---|---|---|
+| U14 | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter testLineSearchFragmentContract` → `OK (1 test, 100 assertions)`; full suite `OK (172 tests, 1215 assertions)` | Throwaway Twig harnesses (deleted after the run): compile of the 4 fragments → `TWIG LINT OK`; render with a stub `fsc` → `U14 RENDER HARNESS OK` (`offset 0 -> next 8 / no prev`; `offset 24 -> prev 16 / next 32`; `partial page -> prev 1 / no next`; `alerts <div>`; `marker absent`) | Revert the 4 `view/ajax/ventas_lineas_*.html.twig` plus the `testLineSearchFragmentContract` extension (commit `66b6cb1`); controllers and listings untouched by U14 |
+| U15 | (gate) full suite `OK (172 tests, 1215 assertions)` | `ddev exec composer phpstan` → 1 pre-existing error only; static audit: `hx-params`/`hx-include`/`is_htmx_request`/`$.ajax`/`mas_resultados(`/marker → 0 in production source; `clickableRow` 1×/listing; `tpvmod_cliente_ajax_dispatch` 1×/controller | N/A (verification only) |
+
+## Test Summary
+
+- **Tests added**: 0 new methods; `testLineSearchFragmentContract` extended by 1 fragment loop (+48 assertions). Suite stays at 172 tests.
+- **Total tests passing**: 172 (1215 assertions), started at 172 (1167 assertions).
+- **Layers used**: Contract/source (DB-free) 1 extended method, Twig compile harness 1 (not committed), Twig render harness 1 (not committed), Unit 0, E2E 0.
+- **Pure functions created**: 0.
+
+## Verification (U15 gate) — real command output
+
+### 1. `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml`
+
+```
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.33
+Configuration: /var/www/html/plugins/tpvmod/phpunit.xml
+
+...............................................................  63 / 172 ( 36%)
+............................................................... 126 / 172 ( 73%)
+..............................................                  172 / 172 (100%)
+
+Time: 00:00.045, Memory: 8.00 MB
+
+OK (172 tests, 1215 assertions)
+```
+
+### 2. `ddev exec composer phpstan`
+
+```
+Note: Using configuration file /var/www/html/phpstan.neon.
+   0/209 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%[1G[2K 209/209 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%
+
+ ------ -----------------------------------------------------------------------
+  Line   tests/Core/PluginEnableAjaxSafetyTest.php
+ ------ -----------------------------------------------------------------------
+  308    Method
+         Tests\Core\AjaxGuardTestPluginManager::applyPluginSchemaUpdates()
+         should return array{success: bool, changes: list<string>, errors: lis
+         t<string>} but returns array{success: true, errors: array{}}.
+         🪪  return.type
+         💡  Array does not have offset 'changes'.
+ ------ -----------------------------------------------------------------------
+
+
+ [ERROR] Found 1 error
+```
+
+**Interpreting this**: the single error is pre-existing and byte-identical to the baseline
+(same file, same line, same rule). PHPStan analyses `paths: [src, tests]` only, so
+`plugins/tpvmod/**` cannot introduce an error. Gate reading: **no new errors.**
+
+### 3. Twig compile + render harness (throwaway, deleted)
+
+```
+PASS compile ajax/ventas_lineas_presupuestos.html.twig
+PASS compile ajax/ventas_lineas_facturas.html.twig
+PASS compile ajax/ventas_lineas_albaranes.html.twig
+PASS compile ajax/ventas_lineas_pedidos.html.twig
+TWIG LINT OK
+
+PASS offset 0 -> no previous link
+PASS offset 0 -> next posts offset 8
+PASS offset 24 -> previous posts offset 16
+PASS offset 24 -> next posts offset 32
+PASS partial page -> previous posts offset 1
+PASS partial page -> no next link
+PASS alerts render as div, not li
+PASS marker absent
+U14 RENDER HARNESS OK
+```
+
+### 4. U14–U15-scoped audit (all pass)
+
+| Check | Result |
+|---|---|
+| `hx-params` in production source (`view/ controller/ lib/ Init.php`) | **0** (only in the test's guard) |
+| `hx-include` in production source | **0** |
+| `mas_resultados(` in `view/` | **0** |
+| `<!--{{ fsc.buscar_lineas }}-->` in `view/ajax/` | **0** |
+| `$.ajax` in the four listings | **0** |
+| `is_htmx_request` in production source | **0** |
+| `tpvmod_cliente_ajax_dispatch` in the 4 listing controllers | **1× each** (retained, AD-8 §8c) |
+| `clickableRow` in the four listings | **1× each** (G2 preserved) |
+| `data-toggle` modals in the four listings | 2–3× each (Bootstrap delegated) |
+| `fsc.paginas()` in the four listings | **1× each**, inside the region |
+
+## Smoke per module — status
+
+The **authenticated browser smoke cannot run in this apply phase** (it needs an agent session
+with permissions; see `config.yaml` `testing.smoke`). Delegated to `sdd-verify`:
+
+- tabs/order/pagination/filters swap the region and push the URL;
+- JS-disabled navigation returns the full page;
+- Alpine re-inits exactly once after a swap (no duplicate-registration warning);
+- delegated `tr.clickableRow[href]` and Bootstrap `data-toggle` still work after a swap;
+- line search debounces, pages prev/next and rejects an invalid token;
+- `cron_job()` does not run on swaps (DB/log observation).
+
+The parts assertable without a session are covered by the harnesses and the audit above.
+
+## Status
+
+**15/15 PR2-track units complete** (U11–U15 done; U1–U10 from PR1 unchanged). Suite green
+(`OK (172 tests, 1215 assertions)`); `phpstan` no new errors. **Ready for `sdd-verify`** on the
+PR2 slice. U16+ (PR3) remains out of scope for this execution.
