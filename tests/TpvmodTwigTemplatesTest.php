@@ -122,20 +122,26 @@ class TpvmodTwigTemplatesTest extends TestCase
 
     public function testViewsNoLongerUseClienteAutocomplete(): void
     {
-        $views = [
-            'tpvmod2.html.twig',
-            'tpvmodedita.html.twig',
-            'tpvmod_albaranes.html.twig',
-            'tpvmod_pedidos.html.twig',
-            'tpvmod_presupuestos.html.twig',
-            'tpvmod_facturas.html.twig',
-        ];
+        $pickerViews = ['tpvmod2.html.twig', 'tpvmodedita.html.twig'];
+        $listingViews = array_values(self::LISTING_TEMPLATES);
 
-        foreach ($views as $view) {
+        // All six drop the legacy devbridge autocomplete.
+        foreach (array_merge($pickerViews, $listingViews) as $view) {
             $content = file_get_contents($this->viewDir . '/' . $view);
             $this->assertIsString($content);
             $this->assertStringNotContainsString('devbridgeAutocomplete', $content, $view);
+        }
+
+        // The client modal survives only on the two TPV line editors.
+        foreach ($pickerViews as $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
             $this->assertStringContainsString('tpvmod-b-buscar-cliente', $content, $view);
+        }
+
+        // The four listings no longer open the client modal.
+        foreach ($listingViews as $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+            $this->assertStringNotContainsString('tpvmod-b-buscar-cliente', $content, $view);
         }
     }
 
@@ -435,6 +441,35 @@ class TpvmodTwigTemplatesTest extends TestCase
             $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
             $this->assertStringNotContainsString('dirclientes', $content, $relativePath);
             $this->assertStringNotContainsString('domfacturacion', $content, $relativePath);
+        }
+    }
+
+    public function testListingViewsExcludeClientPicker(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            // LHT-08: the client picker is gone from the listings, while the
+            // &codcliente= filter survives as read-only text + a clear control.
+            foreach (['ac_cliente', 'tpvmod-b-buscar-cliente', 'partials/modal_clientes.html.twig', 'tpvmod-cliente.js', 'clean_cliente'] as $forbidden) {
+                $this->assertStringNotContainsString($forbidden, $content, $view . ' must not carry ' . $forbidden);
+            }
+
+            $this->assertStringContainsString(
+                'id="tpvmod-cliente-activo"',
+                $content,
+                $view . ' must show the active client as read-only text'
+            );
+            $this->assertMatchesRegularExpression(
+                '/id="tpvmod-cliente-activo"[^>]*readonly="readonly"/',
+                $content,
+                $view . ' the active-client field must be read-only'
+            );
+            $this->assertStringContainsString(
+                "fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0})",
+                $content,
+                $view . ' must offer a clear control that drops the client filter'
+            );
         }
     }
 

@@ -16,12 +16,6 @@
 {{ htmx.boot({'allowScriptTags': false}) }}
 
 <script type="text/javascript">
-   function clean_cliente()
-   {
-      document.f_custom_search.ac_cliente.value='';
-      document.f_custom_search.codcliente.value='';
-      document.f_custom_search.submit();
-   }
    $(document).ready(function() {
 
       {% if fsc.mostrar == 'buscar' %}
@@ -142,19 +136,17 @@
          <div class="col-sm-2">
             <div class="form-group">
                <div class="input-group">
+                  <input class="form-control" type="text" id="tpvmod-cliente-activo" value="{{ fsc.cliente ? fsc.cliente.nombre : '' }}" placeholder="Cualquier cliente" readonly="readonly"/>
                   {% if fsc.cliente %}
-                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
-                  {% else %}
-                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
-                  {% endif %}
                   <span class="input-group-btn">
-                     <button class="btn btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
-                        <span class="glyphicon glyphicon-edit"></span>
-                     </button>
-                     <button class="btn btn-default" type="button" onclick="clean_cliente()" title="Quitar filtro">
+                     <a class="btn btn-default" href="{{ fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0}) }}"
+                        hx-get="{{ fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0}) }}"
+                        hx-target="#tpvmod-facturas-region" hx-select="#tpvmod-facturas-region"
+                        hx-swap="outerHTML" hx-push-url="true" hx-trigger="click" title="Quitar filtro">
                         <span class="glyphicon glyphicon-remove"></span>
-                     </button>
+                     </a>
                   </span>
+                  {% endif %}
                </div>
             </div>
          </div>
@@ -512,5 +504,4 @@
 
 {{ alpine.boot() }}
 
-{% include 'partials/modal_clientes.html.twig' %}
 {% include 'footer.html.twig' %}
