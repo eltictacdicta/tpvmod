@@ -337,6 +337,29 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testFacturasLineSearchPassesOffset(): void
+    {
+        $content = (string) file_get_contents($this->pluginDir . '/controller/tpvmod_facturas.php');
+
+        $buscarLineas = $this->controllerMethodBody($content, 'buscar_lineas');
+        $this->assertNotSame('', $buscarLineas, 'tpvmod_facturas::buscar_lineas not found');
+        $this->assertStringContainsString(
+            "'ajax/ventas_lineas_facturas'",
+            $buscarLineas,
+            'the line search keeps its legacy fragment template'
+        );
+        $this->assertStringContainsString(
+            "search_from_cliente2(\$_POST['codcliente'], \$this->buscar_lineas, \$_POST['buscar_lineas_o'], \$this->offset)",
+            $buscarLineas,
+            'the client-scoped branch must pass the offset'
+        );
+        $this->assertStringContainsString(
+            'search($this->buscar_lineas, $this->offset)',
+            $buscarLineas,
+            'the global branch must pass the offset'
+        );
+    }
+
     public function testEveryPostFormCarriesCsrfField(): void
     {
         $iterator = new \RecursiveIteratorIterator(

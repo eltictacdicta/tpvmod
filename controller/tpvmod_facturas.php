@@ -321,11 +321,11 @@ class tpvmod_facturas extends fs_controller
       
       if( isset($_POST['codcliente']) )
       {
-         $this->lineas = $linea->search_from_cliente2($_POST['codcliente'], $this->buscar_lineas, $_POST['buscar_lineas_o']);
+         $this->lineas = $linea->search_from_cliente2($_POST['codcliente'], $this->buscar_lineas, $_POST['buscar_lineas_o'], $this->offset);
       }
       else
       {
-         $this->lineas = $linea->search($this->buscar_lineas);
+         $this->lineas = $linea->search($this->buscar_lineas, $this->offset);
       }
    }
    
