@@ -190,7 +190,10 @@ class tpvmod_presupuestos extends fs_controller
          }
          
          /// ejecutamos la tarea del cron
-         $presupuesto->cron_job();
+         if( !$this->isHtmxRequest() )
+         {
+            $presupuesto->cron_job();
+         }
          
          if($this->mostrar == 'pendientes')
          {

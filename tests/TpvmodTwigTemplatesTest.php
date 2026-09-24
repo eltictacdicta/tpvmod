@@ -275,6 +275,46 @@ class TpvmodTwigTemplatesTest extends TestCase
             $this->assertStringNotContainsString('"&query="', $paginas, $relativePath);
             $this->assertStringNotContainsString('"&offset="', $paginas, $relativePath);
         }
+
+        // Only presupuestos and pedidos invoke a model cron_job(); both must
+        // gate it on isHtmxRequest() so a swap does not run its UPDATEs.
+        foreach (['controller/tpvmod_presupuestos.php', 'controller/tpvmod_pedidos.php'] as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+            $this->assertStringContainsString('cron_job(', $content, $relativePath);
+            $this->assertMatchesRegularExpression(
+                '/isHtmxRequest\(\)\s*\)\s*\{?\s*\$[A-Za-z_]+->cron_job\(/s',
+                $content,
+                $relativePath . ' must gate cron_job() on isHtmxRequest()'
+            );
+        }
+
+        foreach (['controller/tpvmod_facturas.php', 'controller/tpvmod_albaranes.php'] as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+            $this->assertStringNotContainsString(
+                'cron_job(',
+                $content,
+                $relativePath . ' must not gate a cron_job() it never calls'
+            );
+        }
+    }
+
+    public function testNoLocalHtmxDetectionHelper(): void
+    {
+        $scanned = 0;
+        foreach ($this->pluginSourceFiles() as $path) {
+            $content = (string) file_get_contents($path);
+            $scanned++;
+            $this->assertStringNotContainsString('is_htmx_request', $content, $path);
+            $this->assertStringNotContainsString('tpvmod_is_htmx_request', $content, $path);
+        }
+
+        $this->assertGreaterThan(0, $scanned, 'the plugin source scan must cover at least one file');
+
+        // The htmx gate delegates to fs_controller::isHtmxRequest().
+        foreach (['controller/tpvmod_presupuestos.php', 'controller/tpvmod_pedidos.php'] as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+            $this->assertStringContainsString('isHtmxRequest()', $content, $relativePath);
+        }
     }
 
     public function testListingControllersUseBatchedPhoneLookup(): void
@@ -322,6 +362,36 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
 
         $this->assertGreaterThan(0, $checked, 'at least one POST form must be checked');
+    }
+
+    /**
+     * Every plugin .php/.twig source file except tests/ and vendor/.
+     *
+     * @return list<string>
+     */
+    private function pluginSourceFiles(): array
+    {
+        $files = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->pluginDir, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+
+            $path = $file->getPathname();
+            if (str_contains($path, '/tests/') || str_contains($path, '/vendor/') || str_contains($path, '/.git/')) {
+                continue;
+            }
+
+            if (str_ends_with($file->getFilename(), '.php') || str_ends_with($file->getFilename(), '.twig')) {
+                $files[] = $path;
+            }
+        }
+
+        return $files;
     }
 
     /**

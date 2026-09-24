@@ -186,7 +186,10 @@ class tpvmod_pedidos extends fs_controller
          }
          
          /// ejecutamos el proceso del cron para pedidos.
-         $pedido->cron_job();
+         if( !$this->isHtmxRequest() )
+         {
+            $pedido->cron_job();
+         }
          
          if($this->mostrar == 'pendientes')
          {
