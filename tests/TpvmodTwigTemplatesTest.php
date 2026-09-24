@@ -563,6 +563,34 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testLineSearchFragmentContract(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            // Listing half of the line-search contract: htmx POST to the same
+            // endpoint, replacing #search_results, with a debounced + synced
+            // input (LHT-10, §5.1).
+            $this->assertStringContainsString('hx-post="{{ fsc.url() }}"', $content, $view);
+            $this->assertStringContainsString('hx-target="#search_results"', $content, $view);
+            $this->assertStringContainsString('hx-swap="innerHTML"', $content, $view);
+            $this->assertStringContainsString('hx-trigger="submit"', $content, $view);
+            $this->assertStringContainsString('hx-sync="this:replace"', $content, $view);
+            $this->assertStringContainsString('hx-trigger="keyup changed delay:300ms"', $content, $view);
+            $this->assertStringContainsString('hx-sync="closest form:replace"', $content, $view);
+
+            // No-JS fallback and the server-side offset contract stay intact.
+            $this->assertStringContainsString('method="post"', $content, $view);
+            $this->assertStringContainsString('{{ csrf_field() }}', $content, $view);
+            $this->assertStringContainsString('<input type="hidden" name="offset" value="0"/>', $content, $view);
+
+            // The legacy client-side fetch path is gone (TCP-01).
+            $this->assertStringNotContainsString('$.ajax', $content, $view);
+            $this->assertStringNotContainsString('mas_resultados(', $content, $view);
+            $this->assertStringNotContainsString('function buscar_lineas(', $content, $view);
+        }
+    }
+
     public function testEveryPostFormCarriesCsrfField(): void
     {
         $iterator = new \RecursiveIteratorIterator(

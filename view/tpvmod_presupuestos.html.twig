@@ -353,7 +353,9 @@
 </form>
 {% endif %}
 
-<form class="form" role="form" id="f_buscar_lineas" name="f_buscar_lineas" action="{{ fsc.url()|raw }}" method="post">
+<form class="form" role="form" id="f_buscar_lineas" name="f_buscar_lineas" action="{{ fsc.url()|raw }}" method="post"
+      hx-post="{{ fsc.url() }}" hx-target="#search_results" hx-swap="innerHTML"
+      hx-trigger="submit" hx-sync="this:replace">
    {{ csrf_field() }}
    <input type="hidden" name="offset" value="0"/>
     <div class="modal" id="modal_buscar_lineas">
@@ -377,7 +379,9 @@
                   <div class="row">
                      <div class="col-sm-6">
                         <div class="input-group">
-                           <input class="form-control" type="text" name="buscar_lineas" placeholder="Referencia" autocomplete="off"/>
+                           <input class="form-control" type="text" name="buscar_lineas" placeholder="Referencia" autocomplete="off"
+                                  hx-post="{{ fsc.url() }}" hx-target="#search_results" hx-swap="innerHTML"
+                                  hx-trigger="keyup changed delay:300ms" hx-sync="closest form:replace"/>
                            <span class="input-group-btn">
                               <button class="btn btn-primary" type="submit">
                                  <span class="glyphicon glyphicon-search"></span>
@@ -387,14 +391,18 @@
                      </div>
                      <div class="col-sm-6">
                         <div class="form-group">
-                           <input class="form-control" type="text" name="buscar_lineas_o" placeholder="Observaciones" autocomplete="off"/>
+                           <input class="form-control" type="text" name="buscar_lineas_o" placeholder="Observaciones" autocomplete="off"
+                                  hx-post="{{ fsc.url() }}" hx-target="#search_results" hx-swap="innerHTML"
+                                  hx-trigger="keyup changed delay:300ms" hx-sync="closest form:replace"/>
                         </div>
                      </div>
                   </div>
                </div>
                {% else %}
                <div class="input-group">
-                  <input class="form-control" type="text" name="buscar_lineas" placeholder="Referencia" autocomplete="off"/>
+                  <input class="form-control" type="text" name="buscar_lineas" placeholder="Referencia" autocomplete="off"
+                         hx-post="{{ fsc.url() }}" hx-target="#search_results" hx-swap="innerHTML"
+                         hx-trigger="keyup changed delay:300ms" hx-sync="closest form:replace"/>
                   <span class="input-group-btn">
                      <button class="btn btn-primary" type="submit">
                         <span class="glyphicon glyphicon-search"></span>
