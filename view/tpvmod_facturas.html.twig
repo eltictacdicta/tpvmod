@@ -7,33 +7,15 @@
  * Migrado desde view/tpvmod_facturas.html el 2026-07-18.
  */
 #}
+{% import 'Macro/Htmx.html.twig' as htmx %}
+{% import 'Macro/Alpine.html.twig' as alpine %}
 {% include 'header.html.twig' %}
 
+{# htmx 4 boot with allowScriptTags:false so swapped fragments are scrubbed
+   (HCS-04/05/12). The macro is the only htmx loading point in this view. #}
+{{ htmx.boot({'allowScriptTags': false}) }}
+
 <script type="text/javascript">
-   function buscar_lineas()
-   {
-      if(document.f_buscar_lineas.buscar_lineas.value == '')
-      {
-         $('#search_results').html('');
-      }
-      else
-      {
-         $.ajax({
-            type: 'POST',
-            url: '{{ fsc.url()|raw }}',
-            dataType: 'html',
-            data: $('form[name=f_buscar_lineas]').serialize(),
-            success: function(datos) {
-               var re = /<!--(.*?)-->/g;
-               var m = re.exec( datos );
-               if( m[1] == document.f_buscar_lineas.buscar_lineas.value )
-               {
-                  $('#search_results').html(datos);
-               }
-            }
-         });
-      }
-   }
    function clean_cliente()
    {
       document.f_custom_search.ac_cliente.value='';
@@ -45,22 +27,6 @@
       {% if fsc.mostrar == 'buscar' %}
       document.f_custom_search.query.focus();
       {% endif %}
-
-      $('#b_huecos').click(function() {
-         $('#modal_huecos').modal('show');
-      });
-      $('#b_buscar_lineas').click(function(event) {
-         event.preventDefault();
-         $('#modal_buscar_lineas').modal('show');
-         document.f_buscar_lineas.buscar_lineas.focus();
-      });
-      $('#f_buscar_lineas').keyup(function() {
-         buscar_lineas();
-      });
-      $('#f_buscar_lineas').submit(function(event) {
-         event.preventDefault();
-         buscar_lineas();
-      });
    });
 </script>
 
@@ -102,47 +68,52 @@
          </div>
       </div>
       <div class="col-sm-4 col-xs-6 text-right">
-         <a id="b_buscar_lineas" class="btn btn-sm btn-info" title="Buscar en las líneas">
+         <a id="b_buscar_lineas" class="btn btn-sm btn-info" title="Buscar en las líneas"
+            data-toggle="modal" data-target="#modal_buscar_lineas">
             <span class="glyphicon glyphicon-search"></span> &nbsp; Líneas
          </a>
-         <div class="btn-group">
-            <button type="button" class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-               <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-right">
-               <li>
-                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_desc">
-                     <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
-                     &nbsp; Fecha &nbsp;
-                     {% if fsc.order == 'fecha DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
-                  </a>
-               </li>
-               <li>
-                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_asc">
-                     <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
-                     &nbsp; Fecha &nbsp;
-                     {% if fsc.order == 'fecha ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
-                  </a>
-               </li>
-               <li>
-                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=vencimiento_desc">
-                     <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
-                     &nbsp; Vencimiento &nbsp;
-                     {% if fsc.order == 'vencimiento DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
-                  </a>
-               </li>
-               <li>
-                  <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=vencimiento_asc">
-                     <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
-                     &nbsp; Vencimiento &nbsp;
-                     {% if fsc.order == 'vencimiento ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
-                  </a>
-               </li>
-            </ul>
-         </div>
       </div>
    </div>
 </div>
+
+<div id="tpvmod-facturas-region" x-data="tpvmodListado" x-bind:class="regionClass()">
+   <div class="tpvmod-list-toolbar text-right">
+      <div class="btn-group">
+         <button type="button" class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
+         </button>
+         <ul class="dropdown-menu dropdown-menu-right">
+            <li>
+               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_desc">
+                  <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
+                  &nbsp; Fecha &nbsp;
+                  {% if fsc.order == 'fecha DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
+               </a>
+            </li>
+            <li>
+               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=fecha_asc">
+                  <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
+                  &nbsp; Fecha &nbsp;
+                  {% if fsc.order == 'fecha ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
+               </a>
+            </li>
+            <li>
+               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=vencimiento_desc">
+                  <span class="glyphicon glyphicon-sort-by-attributes-alt" aria-hidden="true"></span>
+                  &nbsp; Vencimiento &nbsp;
+                  {% if fsc.order == 'vencimiento DESC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
+               </a>
+            </li>
+            <li>
+               <a href="{{ fsc.url()|raw }}&amp;mostrar={{ fsc.mostrar }}&amp;order=vencimiento_asc">
+                  <span class="glyphicon glyphicon-sort-by-attributes" aria-hidden="true"></span>
+                  &nbsp; Vencimiento &nbsp;
+                  {% if fsc.order == 'vencimiento ASC' %}<span class="glyphicon glyphicon-ok" aria-hidden="true"></span>{% endif %}
+               </a>
+            </li>
+         </ul>
+      </div>
+   </div>
 
 <ul class="nav nav-tabs" role="tablist">
    <li{% if fsc.mostrar == 'todo' %} class="active"{% endif %}>
@@ -166,93 +137,6 @@
       </a>
    </li>
 </ul>
-
-{% if fsc.mostrar == 'buscar' %}
-<br/>
-<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="post" class="form">
-   {{ csrf_field() }}
-   {% if fsc.cliente %}
-   <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
-   {% else %}
-   <input type="hidden" name="codcliente"/>
-   {% endif %}
-   <div class="container-fluid">
-      <div class="row">
-         <div class="col-sm-2">
-            <div class="form-group">
-               <div class="input-group">
-                  <input class="form-control" type="text" name="query" value="{{ fsc.query }}" autocomplete="off" placeholder="Buscar">
-                  <span class="input-group-btn">
-                     <button class="btn btn-primary hidden-sm" type="submit">
-                        <span class="glyphicon glyphicon-search"></span>
-                     </button>
-                  </span>
-               </div>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <select class="form-control" name="codserie" onchange="this.form.submit()">
-                  <option value="">Cualquier serie</option>
-                  <option value="">-----</option>
-                  {% for value in fsc.serie.all() %}
-                     {% if value.codserie == fsc.codserie %}
-                     <option value="{{ value.codserie }}" selected="">{{ value.descripcion }}</option>
-                     {% else %}
-                     <option value="{{ value.codserie }}">{{ value.descripcion }}</option>
-                     {% endif %}
-                  {% endfor %}
-               </select>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <select name="codagente" class="form-control" onchange="this.form.submit()">
-                  <option value="">Cualquier empleado</option>
-                  <option value="">------</option>
-                  {% for value in fsc.agente.all() %}
-                     {% if value.codagente == fsc.codagente %}
-                     <option value="{{ value.codagente }}" selected="">{{ value.get_fullname() }}</option>
-                     {% else %}
-                     <option value="{{ value.codagente }}">{{ value.get_fullname() }}</option>
-                     {% endif %}
-                  {% endfor %}
-               </select>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <div class="input-group">
-                  {% if fsc.cliente %}
-                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
-                  {% else %}
-                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
-                  {% endif %}
-                  <span class="input-group-btn">
-                     <button class="btn btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
-                        <span class="glyphicon glyphicon-edit"></span>
-                     </button>
-                     <button class="btn btn-default" type="button" onclick="clean_cliente()" title="Quitar filtro">
-                        <span class="glyphicon glyphicon-remove"></span>
-                     </button>
-                  </span>
-               </div>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off" onchange="this.form.submit()"/>
-            </div>
-         </div>
-         <div class="col-sm-2">
-            <div class="form-group">
-               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off" onchange="this.form.submit()"/>
-            </div>
-         </div>
-      </div>
-   </div>
-</form>
-{% endif %}
 
 <div class="table-responsive">
    <table class="table table-hover">
@@ -348,10 +232,98 @@
                <a href="{{ value['url']|raw }}">{{ value['num'] }}</a>
             </li>
             {% endfor %}
-         </ul>
+            </ul>
+         </div>
       </div>
    </div>
 </div>
+
+{% if fsc.mostrar == 'buscar' %}
+<br/>
+<form name="f_custom_search" action="{{ fsc.url()|raw }}" method="post" class="form">
+   {{ csrf_field() }}
+   {% if fsc.cliente %}
+   <input type="hidden" name="codcliente" value="{{ fsc.cliente.codcliente }}"/>
+   {% else %}
+   <input type="hidden" name="codcliente"/>
+   {% endif %}
+   <div class="container-fluid">
+      <div class="row">
+         <div class="col-sm-2">
+            <div class="form-group">
+               <div class="input-group">
+                  <input class="form-control" type="text" name="query" value="{{ fsc.query }}" autocomplete="off" placeholder="Buscar">
+                  <span class="input-group-btn">
+                     <button class="btn btn-primary hidden-sm" type="submit">
+                        <span class="glyphicon glyphicon-search"></span>
+                     </button>
+                  </span>
+               </div>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <select class="form-control" name="codserie" onchange="this.form.submit()">
+                  <option value="">Cualquier serie</option>
+                  <option value="">-----</option>
+                  {% for value in fsc.serie.all() %}
+                     {% if value.codserie == fsc.codserie %}
+                     <option value="{{ value.codserie }}" selected="">{{ value.descripcion }}</option>
+                     {% else %}
+                     <option value="{{ value.codserie }}">{{ value.descripcion }}</option>
+                     {% endif %}
+                  {% endfor %}
+               </select>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <select name="codagente" class="form-control" onchange="this.form.submit()">
+                  <option value="">Cualquier empleado</option>
+                  <option value="">------</option>
+                  {% for value in fsc.agente.all() %}
+                     {% if value.codagente == fsc.codagente %}
+                     <option value="{{ value.codagente }}" selected="">{{ value.get_fullname() }}</option>
+                     {% else %}
+                     <option value="{{ value.codagente }}">{{ value.get_fullname() }}</option>
+                     {% endif %}
+                  {% endfor %}
+               </select>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <div class="input-group">
+                  {% if fsc.cliente %}
+                  <input class="form-control" type="text" name="ac_cliente" value="{{ fsc.cliente.nombre }}" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
+                  {% else %}
+                  <input class="form-control" type="text" name="ac_cliente" id="ac_cliente" placeholder="Cualquier cliente" autocomplete="off" readonly="readonly"/>
+                  {% endif %}
+                  <span class="input-group-btn">
+                     <button class="btn btn-default tpvmod-b-buscar-cliente" type="button" title="Buscar cliente">
+                        <span class="glyphicon glyphicon-edit"></span>
+                     </button>
+                     <button class="btn btn-default" type="button" onclick="clean_cliente()" title="Quitar filtro">
+                        <span class="glyphicon glyphicon-remove"></span>
+                     </button>
+                  </span>
+               </div>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off" onchange="this.form.submit()"/>
+            </div>
+         </div>
+         <div class="col-sm-2">
+            <div class="form-group">
+               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off" onchange="this.form.submit()"/>
+            </div>
+         </div>
+      </div>
+   </div>
+</form>
+{% endif %}
 
 <div class="modal fade" id="modal_huecos">
    <div class="modal-dialog">
@@ -444,6 +416,48 @@
       </div>
    </div>
 </form>
+
+{# Alpine CSP registration — nonce'd classic script, idempotent via window
+   markers because htmx re-executes swapped scripts. Exactly one
+   htmx:after:swap listener re-initializes the swapped region. #}
+<script {{ csp_nonce_attr() }}>
+(function () {
+   if (window.__tpvmodListadoRegistered === true) { return; }
+
+   function registerTpvmodListado() {
+      if (window.__tpvmodListadoRegistered === true) { return; }
+      window.__tpvmodListadoRegistered = true;
+
+      Alpine.data('tpvmodListado', function () {
+         return {
+            loading: false,
+            regionClass: function () {
+               return 'tpvmod-region' + (this.loading ? ' is-loading' : '');
+            }
+         };
+      });
+   }
+
+   if (window.Alpine) {
+      registerTpvmodListado();
+   } else {
+      document.addEventListener('alpine:init', registerTpvmodListado);
+   }
+})();
+
+(function () {
+   if (window.__tpvmodListadoSwapBound === true) { return; }
+   window.__tpvmodListadoSwapBound = true;
+
+   document.addEventListener('htmx:after:swap', function (evt) {
+      if (!window.Alpine || typeof window.Alpine.initTree !== 'function') { return; }
+      var ctx = evt && evt.detail ? evt.detail.ctx : null;
+      window.Alpine.initTree(ctx && ctx.target ? ctx.target : document.body);
+   });
+})();
+</script>
+
+{{ alpine.boot() }}
 
 {% include 'partials/modal_clientes.html.twig' %}
 {% include 'footer.html.twig' %}

@@ -22,6 +22,22 @@ class TpvmodTwigTemplatesTest extends TestCase
         'controller/tpvmod_pedidos.php',
     ];
 
+    /** @var array<string, string> module key => listing template file */
+    private const LISTING_TEMPLATES = [
+        'presupuestos' => 'tpvmod_presupuestos.html.twig',
+        'facturas' => 'tpvmod_facturas.html.twig',
+        'albaranes' => 'tpvmod_albaranes.html.twig',
+        'pedidos' => 'tpvmod_pedidos.html.twig',
+    ];
+
+    /** @var array<string, string> module key => line-search fragment file */
+    private const LINE_FRAGMENTS = [
+        'presupuestos' => 'ajax/ventas_lineas_presupuestos.html.twig',
+        'facturas' => 'ajax/ventas_lineas_facturas.html.twig',
+        'albaranes' => 'ajax/ventas_lineas_albaranes.html.twig',
+        'pedidos' => 'ajax/ventas_lineas_pedidos.html.twig',
+    ];
+
     private string $pluginDir;
 
     private string $viewDir;
@@ -360,6 +376,61 @@ class TpvmodTwigTemplatesTest extends TestCase
         );
     }
 
+    public function testListingsImportHtmxAndAlpineOnce(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            $this->assertSame(
+                1,
+                substr_count($content, "{% import 'Macro/Htmx.html.twig' as htmx %}"),
+                $view . ' must import the htmx macro exactly once'
+            );
+            $this->assertSame(
+                1,
+                substr_count($content, "{% import 'Macro/Alpine.html.twig' as alpine %}"),
+                $view . ' must import the Alpine macro exactly once'
+            );
+            $this->assertStringContainsString(
+                "htmx.boot({'allowScriptTags': false})",
+                $content,
+                $view . ' must boot htmx with the fragment scrubber posture'
+            );
+            $this->assertStringContainsString('alpine.boot()', $content, $view);
+            $this->assertStringContainsString('window.__tpvmodListadoRegistered', $content, $view);
+            $this->assertStringContainsString('window.__tpvmodListadoSwapBound', $content, $view);
+            $this->assertStringContainsString('Alpine.initTree(', $content, $view);
+            $this->assertSame(
+                1,
+                substr_count($content, "'htmx:after:swap'"),
+                $view . ' must bind exactly one htmx:after:swap listener'
+            );
+            $this->assertStringNotContainsString('HtmxCrud.html.twig', $content, $view);
+        }
+
+        // The global chrome must stay free of the opt-in assets.
+        foreach (['themes/AdminLTE/view/header.html.twig', 'themes/AdminLTE/view/footer.html.twig'] as $relativePath) {
+            $content = (string) file_get_contents(FS_FOLDER . '/' . $relativePath);
+            $this->assertStringNotContainsString('htmx', $content, $relativePath);
+            $this->assertStringNotContainsString('Alpine', $content, $relativePath);
+        }
+    }
+
+    public function testListingsDeclareStableSwapRegion(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+            $regionId = $this->regionId($tipo);
+
+            $this->assertSame(
+                1,
+                substr_count($content, 'id="' . $regionId . '"'),
+                $view . ' must declare exactly one #' . $regionId
+            );
+            $this->assertStringContainsString('x-data="tpvmodListado"', $content, $view);
+        }
+    }
+
     public function testEveryPostFormCarriesCsrfField(): void
     {
         $iterator = new \RecursiveIteratorIterator(
@@ -385,6 +456,11 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
 
         $this->assertGreaterThan(0, $checked, 'at least one POST form must be checked');
+    }
+
+    private function regionId(string $tipo): string
+    {
+        return 'tpvmod-' . $tipo . '-region';
     }
 
     /**
