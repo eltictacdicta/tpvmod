@@ -24,6 +24,7 @@ require_model('cliente.php');
 require_model('direccion_cliente.php');
 require_model('serie.php');
 require_once dirname(__DIR__) . '/lib/tpvmod_cliente_ajax.php';
+require_once dirname(__DIR__) . '/lib/tpvmod_listados.php';
 
 class tpvmod_albaranes extends fs_controller
 {
@@ -166,8 +167,8 @@ class tpvmod_albaranes extends fs_controller
             
             if( isset($_REQUEST['desde']) )
             {
-               $this->desde = $_REQUEST['desde'];
-               $this->hasta = $_REQUEST['hasta'];
+               $this->desde = tpvmod_normalize_date($_REQUEST['desde'] ?? '');
+               $this->hasta = tpvmod_normalize_date($_REQUEST['hasta'] ?? '');
             }
          }
          
@@ -207,81 +208,69 @@ class tpvmod_albaranes extends fs_controller
       }
    }
    
-   public function paginas()
+   public function paginas(): array
    {
-      $codcliente = '';
-      if($this->cliente)
-      {
-         $codcliente = $this->cliente->codcliente;
-      }
-      
-      $url = $this->url()."&mostrar=".$this->mostrar
-              ."&query=".$this->query
-              ."&codserie=".$this->codserie
-              ."&codagente=".$this->codagente
-              ."&codcliente=".$codcliente
-              ."&desde=".$this->desde
-              ."&hasta=".$this->hasta;
-      
-      $paginas = array();
-      $i = 0;
-      $num = 0;
-      $actual = 1;
-      
+      return tpvmod_pager_links(
+          (int) $this->offset,
+          $this->list_total(),
+          FS_ITEM_LIMIT,
+          fn(int $offset): string => $this->list_url(['offset' => $offset])
+      );
+   }
+
+   /**
+    * Total rows for the active tab, extracted verbatim from the legacy paginas()
+    * switch. Each module keeps its own switch; only the arithmetic is shared.
+    */
+   private function list_total(): int
+   {
       if($this->mostrar == 'pendientes')
       {
-         $total = $this->total_pendientes();
-      }
-      else if($this->mostrar == 'buscar')
-      {
-         $total = $this->num_resultados;
-      }
-      else
-      {
-         $total = $this->total_registros();
+         return $this->total_pendientes();
       }
       
-      /// añadimos todas la página
-      while($num < $total)
+      if($this->mostrar == 'buscar')
       {
-         $paginas[$i] = array(
-             'url' => $url."&offset=".($i*FS_ITEM_LIMIT),
-             'num' => $i + 1,
-             'actual' => ($num == $this->offset)
-         );
-         
-         if($num == $this->offset)
-         {
-            $actual = $i;
-         }
-         
-         $i++;
-         $num += FS_ITEM_LIMIT;
+         return (int) $this->num_resultados;
       }
       
-      /// ahora descartamos
-      foreach($paginas as $j => $value)
+      return $this->total_registros();
+   }
+   
+   /**
+    * @return array<string, scalar|null>
+    */
+   private function list_params(): array
+   {
+      return [
+          'mostrar' => $this->mostrar,
+          'query' => (string) $this->query,
+          'codserie' => $this->codserie,
+          'codagente' => $this->codagente,
+          'codcliente' => $this->cliente ? $this->cliente->codcliente : '',
+          'desde' => $this->desde,
+          'hasta' => $this->hasta,
+          'order' => tpvmod_order_token_for($this->order),
+          'offset' => (int) $this->offset,
+      ];
+   }
+   
+   /**
+    * Canonical listing URL. The same builder feeds the rendered href and the
+    * htmx attributes.
+    *
+    * @param array<string, scalar|null> $overrides
+    * @param list<string> $omit
+    */
+   public function list_url(array $overrides = array(), array $omit = array()): string
+   {
+      $params = array_merge($this->list_params(), $overrides);
+      foreach($omit as $key)
       {
-         $enmedio = intval($i/2);
-         
-         /**
-          * descartamos todo excepto la primera, la última, la de enmedio,
-          * la actual, las 5 anteriores y las 5 siguientes
-          */
-         if( ($j>1 AND $j<$actual-5 AND $j!=$enmedio) OR ($j>$actual+5 AND $j<$i-1 AND $j!=$enmedio) )
-         {
-            unset($paginas[$j]);
-         }
+         unset($params[$key]);
       }
       
-      if( count($paginas) > 1 )
-      {
-         return $paginas;
-      }
-      else
-      {
-         return array();
-      }
+      return tpvmod_build_list_url($this->url(), $params);
    }
    
    public function buscar_lineas()
@@ -400,22 +389,14 @@ class tpvmod_albaranes extends fs_controller
    {
       $this->resultados = array();
       $this->num_resultados = 0;
-      $query = $this->agente->no_html( strtolower($this->query) );
+      $term = tpvmod_search_term((string) $this->query);
       $sql = " FROM albaranescli ";
       $where = 'WHERE ';
       
-      if($this->query != '')
+      $predicate = tpvmod_build_search_predicate($term, fn(string $v): string => $this->var2str($v));
+      if($predicate !== '')
       {
-         $sql .= $where;
-         if( is_numeric($query) )
-         {
-            $sql .= "(codigo LIKE '%".$query."%' OR numero2 LIKE '%".$query."%' OR observaciones LIKE '%".$query."%')";
-         }
-         else
-         {
-            $sql .= "(lower(codigo) LIKE '%".$query."%' OR lower(numero2) LIKE '%".$query."%' "
-                    . "OR lower(observaciones) LIKE '%".str_replace(' ', '%', $query)."%')";
-         }
+         $sql .= $where.$predicate;
          $where = ' AND ';
       }
       

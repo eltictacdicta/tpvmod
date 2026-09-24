@@ -14,6 +14,14 @@ use PHPUnit\Framework\TestCase;
 
 class TpvmodTwigTemplatesTest extends TestCase
 {
+    /** @var list<string> */
+    private const LISTING_CONTROLLERS = [
+        'controller/tpvmod_presupuestos.php',
+        'controller/tpvmod_facturas.php',
+        'controller/tpvmod_albaranes.php',
+        'controller/tpvmod_pedidos.php',
+    ];
+
     private string $pluginDir;
 
     private string $viewDir;
@@ -226,6 +234,49 @@ class TpvmodTwigTemplatesTest extends TestCase
         $this->assertLessThan($formPos, $listPos, 'the form container must be a sibling after the list');
     }
 
+    public function testListingControllersUseSharedSearchHelper(): void
+    {
+        foreach (self::LISTING_CONTROLLERS as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+
+            $this->assertStringContainsString('tpvmod_search_term(', $content, $relativePath);
+            $this->assertStringContainsString('tpvmod_build_search_predicate(', $content, $relativePath);
+            $this->assertStringContainsString('tpvmod_normalize_date(', $content, $relativePath);
+            $this->assertMatchesRegularExpression(
+                '/\$this->desde\s*=\s*tpvmod_normalize_date\(/',
+                $content,
+                $relativePath . ' must normalize desde'
+            );
+            $this->assertMatchesRegularExpression(
+                '/\$this->hasta\s*=\s*tpvmod_normalize_date\(/',
+                $content,
+                $relativePath . ' must normalize hasta'
+            );
+
+            $buscar = $this->controllerMethodBody($content, 'buscar');
+            $this->assertNotSame('', $buscar, $relativePath . '::buscar not found');
+            $this->assertStringContainsString('tpvmod_build_search_predicate(', $buscar, $relativePath . '::buscar');
+            $this->assertStringContainsString('$this->var2str(', $buscar, $relativePath . '::buscar');
+            $this->assertStringNotContainsString('no_html(', $buscar, $relativePath . '::buscar must not HTML-escape the SQL predicate');
+        }
+    }
+
+    public function testListingControllersGateCronAndBuildUrls(): void
+    {
+        foreach (self::LISTING_CONTROLLERS as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+
+            $this->assertStringContainsString('list_url(', $content, $relativePath);
+
+            $paginas = $this->controllerMethodBody($content, 'paginas');
+            $this->assertNotSame('', $paginas, $relativePath . '::paginas not found');
+            $this->assertStringContainsString('tpvmod_pager_links(', $paginas, $relativePath);
+            $this->assertStringNotContainsString('"&mostrar="', $paginas, $relativePath);
+            $this->assertStringNotContainsString('"&query="', $paginas, $relativePath);
+            $this->assertStringNotContainsString('"&offset="', $paginas, $relativePath);
+        }
+    }
+
     public function testEveryPostFormCarriesCsrfField(): void
     {
         $iterator = new \RecursiveIteratorIterator(
@@ -251,5 +302,24 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
 
         $this->assertGreaterThan(0, $checked, 'at least one POST form must be checked');
+    }
+
+    /**
+     * Extract a controller method body from its declaration up to the next
+     * method declaration. Returns '' when the method is absent.
+     */
+    private function controllerMethodBody(string $source, string $method): string
+    {
+        $start = strpos($source, 'function ' . $method . '(');
+        if ($start === false) {
+            return '';
+        }
+
+        $tail = substr($source, $start);
+        if (preg_match('/\n[ \t]*(?:public |private |protected )?function /', $tail, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return substr($tail, 0, (int) $matches[0][1]);
+        }
+
+        return $tail;
     }
 }
