@@ -596,3 +596,184 @@ The parts assertable without a session are covered by the harnesses and the audi
 **15/15 PR2-track units complete** (U11–U15 done; U1–U10 from PR1 unchanged). Suite green
 (`OK (172 tests, 1215 assertions)`); `phpstan` no new errors. **Ready for `sdd-verify`** on the
 PR2 slice. U16+ (PR3) remains out of scope for this execution.
+
+---
+
+# PR3 batch (U16–U20) — apply-progress
+
+> Branch: `feat/tpvmod-listados-htmx-pr3`, stacked on the PR2 tip `9d64ce2`.
+> Nested `plugins/tpvmod` repo only; the core repo is untouched. Not pushed; no
+> PR opened.
+>
+> **Reconciliation note.** U16–U18 were committed (`c0fdc08`, `f0cb1a7`,
+> `47c24dc`) without an `apply-progress` entry; this section records them from
+> their commits and the passing tests. **U19–U20 were authored in this
+> execution** (`4f5cedb` + this docs commit). All checkboxes in `tasks.md` are
+> now reconciled; only the three authenticated-smoke items stay open for
+> `sdd-verify`.
+
+## Status
+
+| Field | Value |
+|---|---|
+| Mode | **Strict TDD** (`strict_tdd: true`) |
+| Batch | PR3 — columns, filter reorder, picker removal, native dates (U16–U20) |
+| Units completed | **U16–U19** (`c0fdc08`, `f0cb1a7`, `47c24dc`, `4f5cedb`) + **U20 gate** |
+| PR3 slice size | **1107 changed lines** (`9d64ce2..4f5cedb`: `+623 / −484`; U16–U18 = 1024, U19 = 99) — within the 2400-line session budget |
+| Final plugin suite | `OK (176 tests, 1298 assertions)` |
+| `phpstan` | **No new errors** (1 pre-existing, byte-identical to the baseline) |
+| Twig compile harness | the 5 touched views → `TWIG LINT OK` |
+| Render harness | `U19 RENDER HARNESS OK` (4/4) |
+| Authenticated browser smoke | **delegated to `sdd-verify`** (needs an agent session) |
+
+## Units
+
+| Unit | Goal | Status |
+|---|---|---|
+| U16 | Phone + billing-city columns (LHT-06/LHT-07) | ✅ `c0fdc08` |
+| U17 | Filter form reorder above the tabs/region (LHT-03) | ✅ `f0cb1a7` |
+| U18 | Client picker removal + read-only client + clear control (LHT-08) | ✅ `47c24dc` |
+| U19 | Native date inputs — all 10 (LHT-09) | ✅ `4f5cedb` |
+| U20 | PR3 gate: full suite + `phpstan` + full smoke | ✅ suite/`phpstan`/audit; browser smoke delegated |
+
+## U16–U18 (pre-existing commits, reconciled)
+
+| Unit | What landed | Tests pinned |
+|---|---|---|
+| U16 | A phone `<td>` rendering `fsc.telefono_cliente(value.codcliente)` (one batched lookup per page from U7) and a `<td>` for the billing-city snapshot `{{ value.ciudad }}`; no `dirclientes`/`domfacturacion` lookup in the listing path | `testListingsRenderPhoneColumn`, `testListingsRenderCitySnapshot` |
+| U17 | `#f_custom_search` moved **above** the region/tabs so the final byte order is form → region (toolbar, tabs, table, pager) → modals | `testRegionBoundaryAndOrder` |
+| U18 | The `ac_cliente` picker, its button, the modal include and the `tpvmod-cliente.js` load are gone from the four listings; the active client renders as read-only text (`#tpvmod-cliente-activo`) with a clear control carrying `fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0})`; `clean_cliente()` deleted; the four controllers **keep** `tpvmod_cliente_ajax_dispatch`; the modal partial and `tpvmod-cliente.js` stay for `tpvmod2`/`tpvmodedita` | `testListingViewsExcludeClientPicker`, narrowed `testViewsNoLongerUseClienteAutocomplete`, unchanged `testControllersDropCsrfWorkaround` |
+
+## U19 — Native date inputs (all 10)
+
+| File | Action | What was done | Lines |
+|---|---|---|---|
+| `view/tpvmod_presupuestos.html.twig` | modified | `desde`/`hasta` → `type="date"` + `fsc.{desde,hasta}|date_iso`, `class="datepicker"` removed; Rechazar → `type="date"` + `'now'|date('Y-m-d')` | +3 / −3 |
+| `view/tpvmod_facturas.html.twig` | modified | same `desde`/`hasta` conversion | +2 / −2 |
+| `view/tpvmod_albaranes.html.twig` | modified | same | +2 / −2 |
+| `view/tpvmod_pedidos.html.twig` | modified | same | +2 / −2 |
+| `view/tpvmodedita.html.twig` | modified | `fecha` → `type="date"` + `fsc.documento.fecha|date_iso` | +1 / −1 |
+| `tests/TpvmodTwigTemplatesTest.php` | modified | `testNoDatepickerAndNativeDates` + `inputTagFor()` helper | +79 |
+
+No new Twig filter: `date_iso` is the core filter registered at
+`src/Core/Html.php:239`. No controller, `lib/` or fragment was touched.
+
+## TDD Cycle Evidence (Hard Gate — Strict TDD)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| U19 | `TpvmodTwigTemplatesTest.php` | Contract (source, DB-free) | ✅ 175/175 (post-U16–U18 tip `47c24dc`) | ✅ Written; run failed (`tpvmod_presupuestos.html.twig` still contains `datepicker`) | ✅ Passed: `--filter testNoDatepickerAndNativeDates` → `OK (1 test, 39 assertions)`; full suite `OK (176 tests, 1298 assertions)` | ✅ five views: zero `datepicker`; exactly 10 `type="date"` (4×2 + Rechazar + fecha); per-input `desde`/`hasta` `date_iso` prefill + retained `hx-trigger="change"`; Rechazar ISO today; `tpvmodedita` `date_iso`; controller `tpvmod_normalize_date(` in the four; `finoferta` ISO read | ✅ kept the `placeholder` attributes (native inputs ignore them, harmless); no logic change in `controller/tpvmod.php` |
+
+### Work Unit Evidence (Hard Gate — all modes)
+
+| Unit | Focused test command + exact result | Runtime harness command/scenario + exact result | Rollback boundary |
+|---|---|---|---|
+| U19 | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter testNoDatepickerAndNativeDates` → `OK (1 test, 39 assertions)`; full suite `OK (176 tests, 1298 assertions)` | Throwaway harness (deleted after the run): Twig `load()` of the 5 views → `TWIG LINT OK`; ArrayLoader render with a stub `fsc` → `31-01-2026 → 2026-01-31`, `'' → ''`, `5-1-2026 → 2026-01-05`, `now → today ISO` → `U19 RENDER HARNESS OK` | Revert the five views plus the one test method (`4f5cedb`); controllers, `lib/`, fragments untouched |
+
+## Test Summary
+
+- **Tests added**: 1 method + 1 private helper (`testNoDatepickerAndNativeDates`, `inputTagFor()`). Suite 175 → 176 (the U16–U18 methods were already present).
+- **Total tests passing**: 176 (1298 assertions), started at 175 at the PR3 tip before this slice.
+- **Layers used**: Contract/source (DB-free) 1, Twig compile harness 1 (not committed), Twig render harness 1 (not committed), Unit 0, E2E 0.
+- **Pure functions created**: 0.
+
+## Verification (U20 gate) — real command output
+
+### 1. `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml`
+
+```
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.33
+Configuration: /var/www/html/plugins/tpvmod/phpunit.xml
+
+...............................................................  63 / 176 ( 35%)
+............................................................... 126 / 176 ( 71%)
+..................................................              176 / 176 (100%)
+
+Time: 00:00.057, Memory: 8.00 MB
+
+OK (176 tests, 1298 assertions)
+```
+
+### 2. `ddev exec composer phpstan`
+
+```
+ ------ ---------------------------------------------------------------------------------------------------------------------------------------------------
+  Line   tests/Core/PluginEnableAjaxSafetyTest.php
+ ------ ---------------------------------------------------------------------------------------------------------------------------------------------------
+  308    Method Tests\Core\AjaxGuardTestPluginManager::applyPluginSchemaUpdates() should return array{success: bool, changes: list<string>, errors: list<string>}
+         but returns array{success: true, errors: array{}}.
+         🪪  return.type
+         💡  Array does not have offset 'changes'.
+ ------ ---------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+ [ERROR] Found 1 error
+```
+
+**Interpreting this**: the single error is **pre-existing and byte-identical to the
+baseline** (same file, same line, same rule). PHPStan analyses `paths: [src, tests]`
+only, so `plugins/tpvmod/**` cannot introduce an error. Gate reading: **no new
+errors.**
+
+### 3. Twig compile + render harness (throwaway, deleted)
+
+```
+PASS compile tpvmod_presupuestos.html.twig
+PASS compile tpvmod_facturas.html.twig
+PASS compile tpvmod_albaranes.html.twig
+PASS compile tpvmod_pedidos.html.twig
+PASS compile tpvmodedita.html.twig
+TWIG LINT OK
+PASS desde d-m-Y -> ISO
+PASS hasta empty stays empty
+PASS documento fecha single digit -> ISO
+PASS rechazar today ISO
+U19 RENDER HARNESS OK
+```
+
+### 4. U20 grep audit (all pass)
+
+| Check | Result |
+|---|---|
+| `hx-params` in production source (`view/ controller/ lib/ Init.php`) | **0** |
+| `hx-include` in production source | **0** |
+| `no_html(` in the four listing controllers | **0** |
+| `is_htmx_request` / `tpvmod_is_htmx_request` in production source | **0** |
+| `$.ajax` / `mas_resultados(` in the four listings | **0** |
+| `HtmxCrud.html.twig` in `view/` | **0** |
+| `datepicker` in `view/ controller/ lib/` | **0** |
+| `tpvmod_cliente_ajax_dispatch` in the four listing controllers | **1× each** (retained, AD-8 §8c) |
+| `htmx:after:swap` listener bound per listing | **exactly 1** (test-enforced; the second grep hit is the comment/reference, not a second binding) |
+
+## Smoke — status
+
+The **authenticated browser smoke cannot run in this apply phase** (it needs an
+agent session with permissions; see `config.yaml` `testing.smoke`). Delegated to
+`sdd-verify`:
+
+- direct load = full page; pushed URL reloads identically; JS-disabled navigation;
+- tabs/order/pagination/filters swap the region; Rechazar POST with CSRF;
+- line search (typing, debounce, prev/next offset, client-scoped, invalid token);
+- phone/ciudad columns; `&codcliente=` deep link + clear;
+- the 10 native date inputs open the native picker and bind the range;
+- no console errors; no duplicate queries; Alpine re-inits after swaps.
+
+The parts assertable without a session are covered by the harnesses and the audit above.
+
+## Decisions / deviations
+
+| # | Decision | Why |
+|---|---|---|
+| U19-1 | Kept `placeholder="Desde"`/`"Hasta"` and `autocomplete="off"` on the native inputs | Harmless (browsers ignore them on `type="date"`) and it minimises the diff; no test depends on them |
+| U19-2 | `|date_iso` on `fsc.desde`/`fsc.hasta`/`fsc.documento.fecha` is a no-op when the value is already ISO | The controller (`tpvmod_normalize_date`) and the model store ISO; `dateIsoValue()` passes ISO through unchanged and converts the model `d-m-Y` for `tpvmodedita`. It is the mandated core filter, not a new dependency |
+| U19-3 | No logic change in `controller/tpvmod.php` (`finoferta`/document saves) | A native input yields `Y-m-d`; `strtotime('Y-m-d +30 days')` and the `date` column both accept it. Pinned by a regex assertion in the U19 test (record-only, per design §6) |
+| U19-4 | Explicit non-bug statement | The range filter was never broken: `fs_db2::var2str()` normalizes `d-m-Y`. The motivation is dropping the jQuery UI `.datepicker` dependency (`legacy-init.js:26-33`), not a functional fix |
+
+## Status
+
+**20/20 units complete** (U1–U19 implemented; U20 gate passed, its browser smoke
+delegated to verify). Suite green (`OK (176 tests, 1298 assertions)`); `phpstan`
+no new errors; PR3 slice 1107 changed lines within the 2400 budget. **Ready for
+`sdd-verify`** on the PR3 slice.

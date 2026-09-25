@@ -13,8 +13,11 @@
 > **Status:** PR1 (U1–U10) applied on branch `feat/tpvmod-listados-htmx-pr1`;
 > see `apply-progress.md`. PR2 lives on `feat/tpvmod-listados-htmx-pr2`:
 > **U11–U15 are applied** (`61bfae1`, `7843685`, `37ac3ee`, `66b6cb1`).
-> PR3 (U16+) checkboxes are still **pending**. The U10 manual smoke and the
-> PR2 per-module browser smoke stay pending for `sdd-verify`.
+> PR3 lives on `feat/tpvmod-listados-htmx-pr3`: **U16–U18 applied**
+> (`c0fdc08`, `f0cb1a7`, `47c24dc`) and **U19–U20 applied** (`4f5cedb` + the
+> U19–U20 docs commit). The PR3 checkboxes below are reconciled in
+> `apply-progress.md` → "PR3 batch". The U10/PR2/PR3 authenticated browser
+> smoke stays pending for `sdd-verify`.
 
 ## Execution rules (mandatory)
 
@@ -421,9 +424,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~40–60 prod + ~40 test |
 
 **TDD — RED first**
-- [ ] RED — `testListingsRenderPhoneColumn`: each template calls `fsc.telefono_cliente(value.codcliente)` (the controller batched lookup is already asserted in U7). `testListingsRenderCitySnapshot`: each template renders `{{ value.ciudad }}` and the controller has **no** `dirclientes`/`domfacturacion` lookup in the listing path. Run → fail. |
-- [ ] GREEN — add both `<td>` cells; facturas keeps Vencimiento/Comisión and `#modal_huecos`. |
-| [ ] REFACTOR — no `|raw` on either value (Twig auto-escape). |
+- [x] RED — `testListingsRenderPhoneColumn`: each template calls `fsc.telefono_cliente(value.codcliente)` (the controller batched lookup is already asserted in U7). `testListingsRenderCitySnapshot`: each template renders `{{ value.ciudad }}` and the controller has **no** `dirclientes`/`domfacturacion` lookup in the listing path. Run → fail. |
+- [x] GREEN — add both `<td>` cells; facturas keeps Vencimiento/Comisión and `#modal_huecos`. |
+| [x] REFACTOR — no `|raw` on either value (Twig auto-escape). |
 
 **Verificación:** a customer with only `telefono2` shows it; with neither → blank; a document with a city snapshot shows it; with none → blank and no query.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -439,9 +442,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~60–100 prod (move diff) + ~20 test |
 
 **TDD — RED first**
-- [ ] RED — `testRegionBoundaryAndOrder`: `id="f_custom_search"` byte offset **<** region offset; `nav-tabs` and `fsc.paginas()` inside the region; the order dropdown inside the region; `f_buscar_lineas`/`modal_huecos`/`modal_rechazar` after the region close. Run → fail (form still below). |
-- [ ] GREEN — relocate the form block above the region in all four templates. |
-| [ ] REFACTOR — no behavior change; the form keeps its fields, `method="get"` and the hidden `mostrar`/`order`. |
+- [x] RED — `testRegionBoundaryAndOrder`: `id="f_custom_search"` byte offset **<** region offset; `nav-tabs` and `fsc.paginas()` inside the region; the order dropdown inside the region; `f_buscar_lineas`/`modal_huecos`/`modal_rechazar` after the region close. Run → fail (form still below). |
+- [x] GREEN — relocate the form block above the region in all four templates. |
+| [x] REFACTOR — no behavior change; the form keeps its fields, `method="get"` and the hidden `mostrar`/`order`. |
 
 **Verificación:** active tab + order checkmark correct after a swap; filter inputs keep focus/values.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -457,9 +460,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 6 files · ~80–120 prod + ~30 test |
 
 **TDD — RED first**
-- [ ] RED — `testListingViewsExcludeClientPicker`: none of `ac_cliente`, `tpvmod-b-buscar-cliente`, `partials/modal_clientes.html.twig`, `tpvmod-cliente.js`; read-only client text + a clear control carrying `fsc.list_url({'codcliente': ''})`. **Narrow** `testViewsNoLongerUseClienteAutocomplete` per design §8(a): split into `$pickerViews = ['tpvmod2.html.twig', 'tpvmodedita.html.twig']` (assert `tpvmod-b-buscar-cliente` **present**) and `$listingViews = [the four listings]` (assert **absent**); all six still assert `devbridgeAutocomplete` absent. Run → fail. |
-| [ ] GREEN — remove the picker markup/include/JS-load from the four listings; add the read-only text + clear control; delete `clean_cliente()`. |
-| [ ] REFACTOR — **keep `testControllersDropCsrfWorkaround` unchanged and green**: `tpvmod.php`/`tpvmod_albaranes.php`/`tpvmod_pedidos.php` still contain `tpvmod_cliente_ajax_dispatch` and no `function buscar_cliente` (no new listing controller is added to its iterated list). `TpvmodOpcionalRapidoTest.php:637-647` stays unmodified. |
+- [x] RED — `testListingViewsExcludeClientPicker`: none of `ac_cliente`, `tpvmod-b-buscar-cliente`, `partials/modal_clientes.html.twig`, `tpvmod-cliente.js`; read-only client text + a clear control carrying `fsc.list_url({'codcliente': ''})`. **Narrow** `testViewsNoLongerUseClienteAutocomplete` per design §8(a): split into `$pickerViews = ['tpvmod2.html.twig', 'tpvmodedita.html.twig']` (assert `tpvmod-b-buscar-cliente` **present**) and `$listingViews = [the four listings]` (assert **absent**); all six still assert `devbridgeAutocomplete` absent. Run → fail. |
+| [x] GREEN — remove the picker markup/include/JS-load from the four listings; add the read-only text + clear control; delete `clean_cliente()`. |
+| [x] REFACTOR — **keep `testControllersDropCsrfWorkaround` unchanged and green**: `tpvmod.php`/`tpvmod_albaranes.php`/`tpvmod_pedidos.php` still contain `tpvmod_cliente_ajax_dispatch` and no `function buscar_cliente` (no new listing controller is added to its iterated list). `TpvmodOpcionalRapidoTest.php:637-647` stays unmodified. |
 
 **Verificación:** `&codcliente=CLI001` filters and shows read-only text; the clear control drops it; the modal survives on `tpvmod2`/`tpvmodedita`.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -475,9 +478,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 6 files · ~40–60 prod + ~20 test |
 
 **TDD — RED first**
-- [ ] RED — `testNoDatepickerAndNativeDates`: `datepicker` absent from the five views; `type="date"` + `|date_iso` on `desde`/`hasta`; the Rechazar input; the `tpvmodedita` `fecha`; `tpvmod_normalize_date(` in each controller (already in U6). Run → fail. |
-- [ ] GREEN — convert the 10 inputs; **no new Twig filter** (`date_iso` already exists, `src/Core/Html.php:239`). |
-| [ ] REFACTOR — verify the `controller/tpvmod.php` `vencimiento` read (`date("Y-m-d", strtotime($_POST['fecha'] . " +30 days"))`) needs **no logic change** (ISO input) — assert/record only. |
+- [x] RED — `testNoDatepickerAndNativeDates`: `datepicker` absent from the five views; `type="date"` + `|date_iso` on `desde`/`hasta`; the Rechazar input; the `tpvmodedita` `fecha`; `tpvmod_normalize_date(` in each controller (already in U6). Run → fail. |
+- [x] GREEN — convert the 10 inputs; **no new Twig filter** (`date_iso` already exists, `src/Core/Html.php:239`). |
+| [x] REFACTOR — verify the `controller/tpvmod.php` `vencimiento` read (`date("Y-m-d", strtotime($_POST['fecha'] . " +30 days"))`) needs **no logic change** (ISO input) — assert/record only. |
 
 **Verificación:** zero `.datepicker` remains; the range filter bounds results; all 10 inputs open the native picker. **No claim that the range was broken** (see Prohibitions).
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
@@ -492,10 +495,10 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Cubre** | LHT-12, TCP-09, `views` delta "All assertions pass" |
 | **Est.** | 0 files |
 
-- [ ] `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → all green (incl. `TpvmodModulesTest`, `TpvmodOpcionalRapidoTest`, the narrowed `testViewsNoLongerUseClienteAutocomplete` and the unchanged `testControllersDropCsrfWorkaround`).
-- [ ] `ddev exec composer phpstan` → clean.
+- [x] `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → all green (incl. `TpvmodModulesTest`, `TpvmodOpcionalRapidoTest`, the narrowed `testViewsNoLongerUseClienteAutocomplete` and the unchanged `testControllersDropCsrfWorkaround`).
+- [x] `ddev exec composer phpstan` → clean.
 - [ ] Full manual smoke per module (recorded in `verify-report.md`): direct load = full page; pushed URL reloads identically; JS-disabled navigation; tabs/order/pagination/filters; Rechazar POST with CSRF; line search (typing, debounce, prev/next offset, client-scoped, invalid token); phone/ciudad columns; `&codcliente=` deep link + clear; the 10 native date inputs; no console errors; no duplicate queries; Alpine re-inits after swaps.
-- [ ] Grep audit: no `hx-params`, no `hx-include`, no `no_html(` in the four `buscar()`, no `is_htmx_request`/`tpvmod_is_htmx_request`, no `datepicker` in the five views, no `$.ajax`/`mas_resultados(` in the listings.
+- [x] Grep audit: no `hx-params`, no `hx-include`, no `no_html(` in the four `buscar()`, no `is_htmx_request`/`tpvmod_is_htmx_request`, no `datepicker` in the five views, no `$.ajax`/`mas_resultados(` in the listings.
 
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml && ddev exec composer phpstan`
 
