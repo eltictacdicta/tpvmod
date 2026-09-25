@@ -707,6 +707,49 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testFilterBarRendersInEveryListingState(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            $formPos = strpos($content, 'name="f_custom_search"');
+            $this->assertNotFalse($formPos, $view . ' must render the f_custom_search bar');
+            $formPos = (int) $formPos;
+
+            // LHT-13: the filter bar renders in every `mostrar` state, so the
+            // form block must not sit inside the inherited
+            // `{% if fsc.mostrar == 'buscar' %}` guard. Structural check: no
+            // buscar-guard may still be open at the form's byte offset, so
+            // this cannot drift with an occurrence count.
+            $this->assertFalse(
+                $this->isInsideMostrarBuscarGuard($content, $formPos),
+                $view . ' must not wrap the filter form in a mostrar == buscar guard'
+            );
+
+            // The reorder contract survives: the bar stays above the region
+            // and therefore outside the swapped tree (LHT-03).
+            $regionPos = strpos($content, 'id="' . $this->regionId($tipo) . '"');
+            $this->assertNotFalse($regionPos, $view . ' is missing its region wrapper');
+            $this->assertLessThan((int) $regionPos, $formPos, $view . ' the filter form must stay above the region');
+
+            // Only the two documented buscar guards remain: the autofocus
+            // script and the buscar tab's active class. The form guard was the
+            // third and is the one removed here.
+            $this->assertSame(
+                2,
+                substr_count($content, "{% if fsc.mostrar == 'buscar' %}"),
+                $view . ' must keep exactly the autofocus and active-tab buscar guards'
+            );
+
+            $focusPos = strpos($content, 'document.f_custom_search.query.focus();');
+            $this->assertNotFalse($focusPos, $view . ' must keep the autofocus script');
+            $this->assertTrue(
+                $this->isInsideMostrarBuscarGuard($content, (int) $focusPos),
+                $view . ' the autofocus script must stay behind the buscar guard'
+            );
+        }
+    }
+
     public function testLineSearchFragmentContract(): void
     {
         foreach (self::LISTING_TEMPLATES as $tipo => $view) {
@@ -791,6 +834,40 @@ class TpvmodTwigTemplatesTest extends TestCase
     private function regionId(string $tipo): string
     {
         return 'tpvmod-' . $tipo . '-region';
+    }
+
+    /**
+     * Reports whether the byte at $position sits inside an unclosed
+     * `{% if fsc.mostrar == 'buscar' %}` block. It walks the if/endif tags
+     * before the position keeping the still-open condition stack, so the
+     * assertion is structural and survives reformatting or an extra guard.
+     */
+    private function isInsideMostrarBuscarGuard(string $content, int $position): bool
+    {
+        preg_match_all(
+            '/\{%-?\s*(if\b.*?|endif\b.*?)-?%\}/s',
+            substr($content, 0, $position),
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        $open = [];
+        foreach ($matches as $match) {
+            $tag = trim($match[1]);
+            if (str_starts_with($tag, 'endif')) {
+                array_pop($open);
+                continue;
+            }
+            $open[] = $tag;
+        }
+
+        foreach ($open as $condition) {
+            if (str_contains($condition, 'fsc.mostrar') && str_contains($condition, "'buscar'")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

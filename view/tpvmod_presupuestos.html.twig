@@ -70,7 +70,6 @@
    </div>
 </div>
 
-{% if fsc.mostrar == 'buscar' %}
 <br/>
 <form name="f_custom_search" action="{{ fsc.url()|raw }}" method="get" class="form"
       hx-get="{{ fsc.url() }}" hx-target="#tpvmod-presupuestos-region"
@@ -169,7 +168,6 @@
       </div>
    </div>
 </form>
-{% endif %}
 
 <div id="tpvmod-presupuestos-region" x-data="tpvmodListado" x-bind:class="regionClass()">
    <div class="tpvmod-list-toolbar text-right">
