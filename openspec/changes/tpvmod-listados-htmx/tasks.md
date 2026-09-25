@@ -23,7 +23,8 @@
 > `apply-progress.md` → "PR3 follow-up — U21"); the filter bar now renders in
 > every listing state. A later smoke found the bar **stale after a swap** (the
 > cleared client filter was re-applied); **U22 (LHT-14)** adds the post-swap
-> re-synchronization and is **not yet applied**.
+> re-synchronization and **is applied** (see `apply-progress.md` → "PR3
+> follow-up — U22").
 
 ## Execution rules (mandatory)
 
@@ -551,9 +552,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~30–60 prod (re-sync script) + ~40 test |
 
 **TDD — RED first**
-- [ ] RED — `testFilterBarResyncsAfterSwap` (new, DB-free): for each of the four templates assert the post-swap re-synchronization contract — one `'htmx:after:swap'` handler reads the current URL (`location.search`), targets `id="tpvmod-cliente-activo"` and `input[name="codcliente"]`, and rebuilds the `hx-get` of `select[name="codserie"]`, `select[name="codagente"]`, `input[name="desde"]`, `input[name="hasta"]` and the client-clear control; assert the text inputs are not rewritten (no `outerHTML`/`replaceWith` over the bar); assert the sole `'htmx:after:swap'` count stays 1 (`testListingsImportHtmxAndAlpineOnce`). Run → **fail** (no re-sync exists; the bar is never touched after a swap).
-- [ ] GREEN — extend the existing listener with the re-sync (the exact hook/selector seam is pinned in design); the label and hidden follow the URL's `codcliente`; each non-text control's `hx-get` is rebuilt from `location.search`.
-- [ ] REFACTOR — one shared re-sync implementation across the four listings (same seam as the Alpine re-init, TCP-07); no per-module duplicate; text inputs never replaced.
+- [x] RED — `testFilterBarResyncsAfterSwap` (new, DB-free): for each of the four templates assert the post-swap re-synchronization contract — one `'htmx:after:swap'` handler reads the current URL (`location.search`), targets `id="tpvmod-cliente-activo"` and `input[name="codcliente"]`, and rebuilds the `hx-get` of `select[name="codserie"]`, `select[name="codagente"]`, `input[name="desde"]`, `input[name="hasta"]` and the client-clear control; assert the text inputs are not rewritten (no `outerHTML`/`replaceWith` over the bar); assert the sole `'htmx:after:swap'` count stays 1 (`testListingsImportHtmxAndAlpineOnce`). Run → **fail** (`0 is identical to 1` at the re-sync call, first template).
+- [x] GREEN — extended the existing single listener: added `tpvmodSwapBase`/`tpvmodSwapRebuild`/`tpvmodResyncFilterBar`, called before and outside the Alpine guard. The label and hidden follow the URL's `codcliente`; each non-text control's `hx-get` (and the clear control's `hx-get`/`href`) is rebuilt by key-level `URLSearchParams` algebra over its own server-rendered `hx-get` prefix. A stable `data-tpvmod-role="cliente-clear"` hook was added to the clear anchor in the four views. Focused `--filter testFilterBarResyncsAfterSwap` green (1 test, 120 assertions).
+- [x] REFACTOR — one shared re-sync implementation, byte-identical across the four listings (same seam as the Alpine re-init, TCP-07); no per-module duplicate; text inputs never replaced; no `outerHTML`/`replaceWith`/`innerHTML` in the inline script. Triangulated with own-key/omit-key assertions (clear control keeps omitting `codcliente`). Node DOM-shim harness replayed 3 scenarios (clear / fill / query-preserving) with the real extracted script. Slice: **380 changed lines** (`+376 / −4`: test `+144`; four templates `+58 / −1` each) — within the 800-line budget. Full suite `OK (182 tests, 1477 assertions)`; phpstan unchanged (1 pre-existing core error).
 
 **Verification:** clearing the client then changing a filter issues a request without `codcliente`; the label and hidden field empty after clearing (and fill after a `[+]` swap); the query/date inputs keep focus across a swap; name/phone search and every filter unchanged; the full suite stays green.
 **Command:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`

@@ -908,3 +908,109 @@ TWIG LINT OK
 (`OK (181 tests, 1337 assertions)`); `phpstan` no new errors. **Ready for
 `sdd-verify`** on the U21 amendment. Only the authenticated browser smoke items
 stay delegated.
+
+# PR3 follow-up — U22 (post-verify amendment) — apply-progress
+
+> Appended after the U21 amendment. The authenticated smoke's second finding:
+> the `#f_custom_search` bar lives outside the swapped region and is never
+> re-rendered, so after a clear swap its label, hidden `codcliente` and
+> non-text controls' `hx-get` stayed stale and the next filter change
+> re-applied the cleared customer. View-layer only: no controller, helper,
+> schema or dependency change. Supersedes nothing; merges on top of U21.
+
+## Status
+
+| Field | Value |
+|---|---|
+| Change | `tpvmod-listados-htmx` (plugin-local) |
+| Unit | **U22** — post-swap filter-bar re-synchronization (LHT-14, `views` delta) |
+| Mode | Strict TDD (`strict_tdd: true`) |
+| State | ✅ applied |
+| Next | `sdd-verify` (authenticated browser smoke stays delegated) |
+
+## Unit
+
+| Unit | Objective | Result |
+|---|---|---|
+| U22 | Extend the single existing `htmx:after:swap` listener with a plain-DOM `tpvmodResyncFilterBar()` that runs before/outside the Alpine guard and re-derives the bar from `location.search`: empty/fill `#tpvmod-cliente-activo` and the hidden `codcliente`, rebuild the `hx-get`/`href` of the non-text controls (serie, agente, dates, client-clear) by key-level `URLSearchParams` algebra over each control's own server `hx-get` prefix; never replace the text inputs | ✅ applied |
+
+## Files changed (U22)
+
+| File | Action | What |
+|---|---|---|
+| `tests/TpvmodTwigTemplatesTest.php` | Modified | +`testFilterBarResyncsAfterSwap` (contract over the 4 views) + `inlineScriptBlock()` helper |
+| `view/tpvmod_presupuestos.html.twig` | Modified | re-sync script in the single listener; `data-tpvmod-role="cliente-clear"` hook on the clear anchor |
+| `view/tpvmod_facturas.html.twig` | Modified | same |
+| `view/tpvmod_albaranes.html.twig` | Modified | same |
+| `view/tpvmod_pedidos.html.twig` | Modified | same |
+
+## TDD Cycle Evidence (Hard Gate — Strict TDD)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| U22 | `TpvmodTwigTemplatesTest.php` | Contract (source, DB-free) | ✅ `OK (181 tests, 1337 assertions)` before edits | ✅ Written first; run failed `tpvmod_presupuestos.html.twig must call the filter-bar re-sync exactly once — Failed asserting that 0 is identical to 1` | ✅ Passed: `--filter testFilterBarResyncsAfterSwap` → `OK (1 test, 120 assertions)`; full suite `OK (182 tests, 1477 assertions)` | ✅ 4 template inputs × own-key/omit-key assertions (each control drops its own `name`; the clear control drops `codcliente` and never sets it empty) → `OK (1 test, 140 assertions)` | ✅ One shared implementation, byte-identical across the 4 listings (same Alpine seam, TCP-07); `node --check` clean; no `outerHTML`/`replaceWith`/`innerHTML` in the inline script |
+
+### Work Unit Evidence (Hard Gate — all modes)
+
+| Evidence | Value |
+|---|---|
+| Focused test command and result | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter testFilterBarResyncsAfterSwap` → `OK (1 test, 140 assertions)`; full suite `OK (182 tests, 1477 assertions)` (baseline `181/1337`) |
+| Runtime harness (exact result) | Node 22 DOM-shim harness replaying the real extracted inline script: `HARNESS OK — 3 scenarios, resync algebra verified` — (1) clear: label+hidden emptied, all four control `hx-get` lose `codcliente`, clear keeps omitting it; (2) fill: hidden follows `codcliente`, label left untouched (server-owned name), control base reflects it; (3) `query` preserved via `URLSearchParams`, no text input touched. Harness kept outside the repo (`/tmp/opencode/`) |
+| Rollback boundary | Revert the 5 files above only: the 4 templates' `tpvmodResyncFilterBar` block + `data-tpvmod-role` attribute, and `testFilterBarResyncsAfterSwap`/`inlineScriptBlock()`. No controller, helper, schema or dependency depends on this change |
+
+## Test Summary
+
+- **Total tests written**: 1 (`testFilterBarResyncsAfterSwap`, 140 assertions over the 4 listings)
+- **Total tests passing**: 182 / 182 (suite), 140 assertions for the new test
+- **Layers used**: Contract/source (1); Runtime JS harness (1, throwaway)
+- **Triangulation cases**: 4 template inputs × own-key/omit-key checks
+- **Pure functions created**: 0 (view-layer JS)
+
+## Verification (U22) — real command output
+
+### 1. `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml`
+
+```
+...............................................................  63 / 182 ( 34%)
+............................................................... 126 / 182 ( 69%)
+........................................................        182 / 182 (100%)
+OK (182 tests, 1477 assertions)
+```
+
+### 2. `ddev exec composer phpstan`
+
+```
+ ------ ---------------------------------------------------------------------------------
+  Line   tests/Core/PluginEnableAjaxSafetyTest.php
+  308    Method Tests\Core\AjaxGuardTestPluginManager::applyPluginSchemaUpdates() ...
+ [ERROR] Found 1 error
+```
+
+Identical to the pre-existing baseline error (core `tests/Core/PluginEnableAjaxSafetyTest.php:308`); **no new errors** introduced under `plugins/tpvmod/`.
+
+### 3. Node DOM-shim harness (throwaway, deleted)
+
+```
+HARNESS OK — 3 scenarios, resync algebra verified
+```
+
+### 4. Slice size (measured)
+
+`git diff --numstat`: `+376 / −4` = **380 changed lines** (test `+144`; four templates `+58 / −1` each). Within the 800-line budget.
+
+## Decisions / deviations
+
+| ID | Decision | Why |
+|---|---|---|
+| U22-1 | Reused each control's own server-rendered `hx-get` prefix (`split('?')`) and rebuilt the query with `URLSearchParams` | Keeps the canonical `list_url()` base/encoding and forbids raw `&key=value` concatenation (LHT-11); `location.search` already carries `page=…` |
+| U22-2 | Added `data-tpvmod-role="cliente-clear"` to the clear anchor (the stable hook the `views` delta flagged as missing) | The clear control's `hx-get`/`href` must be rebuilt and it is not addressable by a stable selector otherwise; minimal markup change |
+| U22-3 | Label is only **emptied** when the URL has no `codcliente`; a non-empty name is left untouched | The URL carries only the code; the human name has no client-side source (design §4.1). The `[+]` fill path is a native navigation that re-renders the whole bar server-side |
+| U22-4 | Did **not** touch tabs/order/pagination or the hidden `mostrar`/`order` | They live inside the swapped region and are server-rendered; the dynamic clear show/hide and hidden `order` drift are AD-15/R12 residuals, explicitly out of U22 scope |
+| U22-5 | Text inputs (`query`, `desde`, `hasta`) are never re-rendered; only attributes/values are assigned | Preserves value and focus (LHT-03/LHT-14) |
+
+## Status
+
+**22/22 units complete** (U1–U20 unchanged; U21 and U22 applied). Suite green
+(`OK (182 tests, 1477 assertions)`); `phpstan` no new errors. **Ready for
+`sdd-verify`** on the U22 amendment. Only the authenticated browser smoke items
+stay delegated.
