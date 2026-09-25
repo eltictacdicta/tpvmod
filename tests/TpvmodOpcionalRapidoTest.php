@@ -130,7 +130,7 @@ final class TpvmodOpcionalRapidoTest extends TestCase
         $this->assertSame(12.5, $data['precio']);
         $this->assertNull($data['porcentaje']);
         $this->assertTrue($data['activo']);
-        $this->assertNull($data['id_grupo']);
+        $this->assertFalse($data['grouped']);
     }
 
     public function testNormalizeOpcionalInputMapsPercentageFields(): void
@@ -148,7 +148,7 @@ final class TpvmodOpcionalRapidoTest extends TestCase
         $this->assertSame(0.0, $data['precio']);
         $this->assertSame(10.0, $data['porcentaje']);
         $this->assertTrue($data['activo']);
-        $this->assertNull($data['id_grupo']);
+        $this->assertFalse($data['grouped']);
     }
 
     public function testNormalizeOpcionalInputUnknownTipoFallsBackToFijo(): void
@@ -227,8 +227,8 @@ final class TpvmodOpcionalRapidoTest extends TestCase
 
     public function testMatchOpcionalByNombreSkipsGroupedCandidates(): void
     {
-        $grouped = ['id' => 1, 'nombre' => '  Toallero  ', 'id_grupo' => 3];
-        $ungrouped = ['id' => 2, 'nombre' => 'Toallero', 'id_grupo' => null];
+        $grouped = ['id' => 1, 'nombre' => '  Toallero  ', 'grouped' => true];
+        $ungrouped = ['id' => 2, 'nombre' => 'Toallero', 'grouped' => false];
 
         $match = tpvmod_match_opcional_by_nombre([$grouped, $ungrouped], 'toallero');
 
@@ -239,25 +239,29 @@ final class TpvmodOpcionalRapidoTest extends TestCase
         $this->assertNull(tpvmod_match_opcional_by_nombre([$grouped], 'toallero'));
     }
 
-    public function testOpcionalCandidateArrayCarriesIdGrupo(): void
+    public function testOpcionalCandidateArrayCarriesGroupedFlag(): void
     {
-        $grouped = tpvmod_opcional_candidate_array((object) [
-            'id' => 1,
-            'nombre' => 'X',
-            'id_grupo' => 7,
-        ]);
+        $grouped = tpvmod_opcional_candidate_array(new class {
+            public $id = 1;
+            public $nombre = 'X';
+
+            public function is_grouped(): bool
+            {
+                return true;
+            }
+        });
 
         $this->assertNotNull($grouped);
-        $this->assertSame(7, (int) $grouped['id_grupo']);
+        $this->assertTrue($grouped['grouped']);
 
-        $ungrouped = tpvmod_opcional_candidate_array((object) [
-            'id' => 2,
-            'nombre' => 'Y',
-        ]);
+        $ungrouped = tpvmod_opcional_candidate_array(new class {
+            public $id = 2;
+            public $nombre = 'Y';
+        });
 
         $this->assertNotNull($ungrouped);
-        $this->assertArrayHasKey('id_grupo', $ungrouped);
-        $this->assertNull($ungrouped['id_grupo']);
+        $this->assertArrayHasKey('grouped', $ungrouped);
+        $this->assertFalse($ungrouped['grouped']);
     }
 
     public function testBumpOpcionalCodigoKeepsShape(): void
@@ -422,7 +426,6 @@ final class TpvmodOpcionalRapidoTest extends TestCase
             'precio' => 12.5,
             'tipo_precio' => 'fijo',
             'porcentaje' => null,
-            'id_grupo' => null,
         ]);
 
         $this->assertSame(12, $payload['id']);
@@ -488,7 +491,7 @@ final class TpvmodOpcionalRapidoTest extends TestCase
                 'precio' => 3.0,
                 'tipo_precio' => 'fijo',
                 'porcentaje' => null,
-                'id_grupo' => 4,
+                'grouped' => true,
             ]], 'DEF')
         );
 
@@ -496,7 +499,6 @@ final class TpvmodOpcionalRapidoTest extends TestCase
         $this->assertTrue($result['ok']);
         $this->assertSame(1, $opcional->saveCalls);
         $this->assertSame(12, $result['opcional']['id']);
-        $this->assertNull($opcional->id_grupo);
         $this->assertNull($result['opcional']['grupo_id']);
         $this->assertSame(['REF1', 12, false], $relation->addArgs);
     }
@@ -520,7 +522,6 @@ final class TpvmodOpcionalRapidoTest extends TestCase
         $this->assertSame(1, $opcional->saveCalls);
         $this->assertSame('OPC0009', $opcional->codigo);
         $this->assertTrue($opcional->activo);
-        $this->assertNull($opcional->id_grupo);
         $this->assertSame(1, $opcional->precioListaCalls);
         $this->assertSame(['DEF', 12.5], $opcional->precioListaArgs);
         $this->assertSame(0, $opcional->porcentajeListaCalls);
@@ -685,7 +686,7 @@ final class TpvmodOpcionalRapidoTest extends TestCase
             'precio' => $precio,
             'porcentaje' => $porcentaje,
             'activo' => true,
-            'id_grupo' => null,
+            'grouped' => false,
         ];
     }
 
@@ -717,7 +718,6 @@ final class TpvmodOpcionalRapidoTest extends TestCase
             public $tipo_precio = 'fijo';
             public $porcentaje = null;
             public $activo = true;
-            public $id_grupo = null;
 
             public int $saveCalls = 0;
             public int $precioListaCalls = 0;

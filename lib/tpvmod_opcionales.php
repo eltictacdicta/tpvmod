@@ -108,7 +108,7 @@ function tpvmod_normalize_opcional_input(array $post): array
             'precio' => $tipo === 'porcentaje' ? 0.0 : $valor,
             'porcentaje' => $tipo === 'porcentaje' ? $valor : null,
             'activo' => true,
-            'id_grupo' => null,
+            'grouped' => false,
         ],
     ];
 }

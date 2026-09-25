@@ -23,6 +23,32 @@ function tpvmod_normalize_opcional_nombre(string $nombre): string
 }
 
 /**
+ * Whether a catalog opcional belongs to any optional group.
+ *
+ * Sourced from the `catalogo_opcional_grupo_rel` bridge through
+ * `catalogo_opcional::is_grouped()` (AD-13); a plain array candidate carries
+ * the already-normalized `grouped` flag.
+ *
+ * @param mixed $candidate
+ */
+function tpvmod_opcional_is_grouped($candidate): bool
+{
+    if (is_array($candidate)) {
+        return !empty($candidate['grouped']);
+    }
+
+    if (!is_object($candidate)) {
+        return false;
+    }
+
+    if (method_exists($candidate, 'is_grouped')) {
+        return (bool) $candidate->is_grouped();
+    }
+
+    return !empty($candidate->grouped);
+}
+
+/**
  * Convert a catalog opcional (model or array) into a plain candidate array.
  *
  * @param mixed $candidate
@@ -46,7 +72,7 @@ function tpvmod_opcional_candidate_array($candidate): ?array
         'precio' => (float) ($candidate->precio ?? 0),
         'tipo_precio' => (string) ($candidate->tipo_precio ?? 'fijo'),
         'porcentaje' => $candidate->porcentaje ?? null,
-        'id_grupo' => ($candidate->id_grupo ?? null),
+        'grouped' => tpvmod_opcional_is_grouped($candidate),
     ];
 }
 
@@ -72,8 +98,7 @@ function tpvmod_match_opcional_by_nombre(array $candidates, string $nombre): ?ar
         /// Grouped opcionales are not reusable (OD-5/OD-8): a grouped match
         /// would later be rejected by catalogo_articulo_opcional::add(), so skip
         /// it and let the flow create a new ungrouped opcional instead.
-        $idGrupo = (int) ($item['id_grupo'] ?? 0);
-        if ($idGrupo > 0) {
+        if (!empty($item['grouped'])) {
             continue;
         }
 
@@ -159,7 +184,6 @@ function tpvmod_opcionales_ajax_opcional_payload(object|array $opcional): array
     };
 
     $porcentaje = $read('porcentaje');
-    $grupoId = $read('id_grupo');
 
     return [
         'id' => (int) $read('id', 0),
@@ -169,7 +193,9 @@ function tpvmod_opcionales_ajax_opcional_payload(object|array $opcional): array
         'precio' => (float) $read('precio', 0),
         'tipo_precio' => (string) $read('tipo_precio', 'fijo'),
         'porcentaje' => ($porcentaje === null || $porcentaje === '') ? null : (float) $porcentaje,
-        'grupo_id' => ($grupoId === null || $grupoId === '' || (int) $grupoId <= 0) ? null : (int) $grupoId,
+        /// Quick-create/reuse opcionales are always loose (AD-13): the group
+        /// payload never comes from the model.
+        'grupo_id' => null,
     ];
 }
 
@@ -251,7 +277,6 @@ function tpvmod_opcionales_ajax_persist(
         $opcional->precio = (float) ($match['precio'] ?? 0);
         $opcional->tipo_precio = (string) ($match['tipo_precio'] ?? 'fijo');
         $opcional->porcentaje = ($match['porcentaje'] ?? null) !== null ? (float) $match['porcentaje'] : null;
-        $opcional->id_grupo = ((int) ($match['id_grupo'] ?? 0)) > 0 ? (int) $match['id_grupo'] : null;
     } else {
         $opcional->nombre = (string) $data['nombre'];
         $opcional->descripcion = (string) $data['descripcion'];
@@ -259,7 +284,6 @@ function tpvmod_opcionales_ajax_persist(
         $opcional->precio = (float) $data['precio'];
         $opcional->porcentaje = $data['porcentaje'] !== null ? (float) $data['porcentaje'] : null;
         $opcional->activo = true;
-        $opcional->id_grupo = null;
 
         $base = (string) $opcional->get_new_codigo();
         $exists = static fn (string $codigo): bool => (bool) $opcional->get_by_codigo($codigo);

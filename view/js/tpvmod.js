@@ -692,10 +692,14 @@ function tpvmod_pick_opcional(parentUid, opcionalId)
    if(!opcional)
       return;
 
+   // AD-12: dedupe by opcional id BEFORE the exclusive-group replacement. The
+   // opcional is presented under every group it belongs to, so a second
+   // selection of the same id must not add a second line/charge.
+   if(tpvmod_get_added_opcional_ids(parentUid)[String(opcional.id)])
+      return;
+
    if(opcional.grupo_id && opcional.grupo_exclusivo)
       tpvmod_remove_opcional_in_grupo(parentUid, String(opcional.grupo_id));
-   else if(tpvmod_get_added_opcional_ids(parentUid)[String(opcional.id)])
-      return;
 
    tpvmod_add_opcional_linea(parentUid, opcional, ctx.cantidad, ctx.codimpuesto, ctx.ivaArticulo);
    tpvmod_reorder_opcionales();
