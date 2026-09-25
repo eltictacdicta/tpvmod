@@ -147,7 +147,7 @@
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <input type="text" name="desde" value="{{ fsc.desde }}" class="form-control datepicker" placeholder="Desde" autocomplete="off"
+               <input type="date" name="desde" value="{{ fsc.desde|date_iso }}" class="form-control" placeholder="Desde" autocomplete="off"
                       hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['desde']) }}"
                       hx-target="#tpvmod-albaranes-region" hx-select="#tpvmod-albaranes-region"
                       hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>
@@ -155,7 +155,7 @@
          </div>
          <div class="col-sm-2">
             <div class="form-group">
-               <input type="text" name="hasta" value="{{ fsc.hasta }}" class="form-control datepicker" placeholder="Hasta" autocomplete="off"
+               <input type="date" name="hasta" value="{{ fsc.hasta|date_iso }}" class="form-control" placeholder="Hasta" autocomplete="off"
                       hx-get="{{ fsc.list_url({'mostrar': 'buscar', 'offset': 0}, ['hasta']) }}"
                       hx-target="#tpvmod-albaranes-region" hx-select="#tpvmod-albaranes-region"
                       hx-swap="outerHTML" hx-push-url="true" hx-trigger="change"/>

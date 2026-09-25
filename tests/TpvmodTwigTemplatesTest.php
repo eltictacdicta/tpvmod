@@ -473,6 +473,70 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    public function testNoDatepickerAndNativeDates(): void
+    {
+        // LHT-09: every date surface is a native <input type="date">. The
+        // jQuery UI `.datepicker` class is gone (it kept the legacy widget
+        // coupling and forced a re-init after every htmx swap). The motivation
+        // is the removed dependency, not a range-filter bug.
+        $dateViews = array_merge(array_values(self::LISTING_TEMPLATES), ['tpvmodedita.html.twig']);
+
+        $nativeDates = 0;
+        foreach ($dateViews as $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            $this->assertStringNotContainsString('datepicker', $content, $view . ' must not use the datepicker class');
+            $nativeDates += substr_count($content, 'type="date"');
+        }
+
+        // 4 listings x (desde + hasta) + the Rechazar field + tpvmodedita fecha.
+        $this->assertSame(10, $nativeDates, 'exactly ten native date inputs must replace the ten datepicker fields');
+
+        // Listings: desde/hasta are ISO-prefilled through the core `date_iso`
+        // filter (no new filter) and keep their htmx change trigger.
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            foreach (['desde', 'hasta'] as $name) {
+                $tag = $this->inputTagFor($content, $name);
+                $this->assertStringContainsString('type="date"', $tag, $view . ' ' . $name . ' must be a native date input');
+                $this->assertStringContainsString(
+                    'value="{{ fsc.' . $name . '|date_iso }}"',
+                    $tag,
+                    $view . ' ' . $name . ' must be prefilled through date_iso'
+                );
+                $this->assertStringContainsString('hx-trigger="change"', $tag, $view . ' ' . $name . ' must keep its htmx change trigger');
+            }
+        }
+
+        // Rechazar modal: today's ISO date (a native input only carries ISO).
+        $presupuestos = (string) file_get_contents($this->viewDir . '/tpvmod_presupuestos.html.twig');
+        $rechazar = $this->inputTagFor($presupuestos, 'rechazar');
+        $this->assertStringContainsString('type="date"', $rechazar, 'the Rechazar input must be a native date input');
+        $this->assertStringContainsString('value="{{ \'now\'|date(\'Y-m-d\') }}"', $rechazar);
+
+        // tpvmodedita: the document date is converted from the model format.
+        $edita = (string) file_get_contents($this->viewDir . '/tpvmodedita.html.twig');
+        $fecha = $this->inputTagFor($edita, 'fecha');
+        $this->assertStringContainsString('type="date"', $fecha, 'the tpvmodedita fecha input must be a native date input');
+        $this->assertStringContainsString('value="{{ fsc.documento.fecha|date_iso }}"', $fecha);
+
+        // Controller side (U6) keeps the ISO normalization, and the tpvmod
+        // finoferta math reads the native ISO value unchanged: the old
+        // d-m-Y datepicker value and the new Y-m-d one both parse, so this is
+        // a no-op assertion pinning the read contract.
+        foreach (self::LISTING_CONTROLLERS as $relativePath) {
+            $content = (string) file_get_contents($this->pluginDir . '/' . $relativePath);
+            $this->assertStringContainsString('tpvmod_normalize_date(', $content, $relativePath);
+        }
+        $tpvmod = (string) file_get_contents($this->pluginDir . '/controller/tpvmod.php');
+        $this->assertMatchesRegularExpression(
+            '/date\(\s*"Y-m-d"\s*,\s*strtotime\(\s*\$_POST\[\'fecha\'\]\s*\.\s*" \+30 days"\s*\)\s*\)/',
+            $tpvmod,
+            'the finoferta math must read the native ISO date'
+        );
+    }
+
     public function testListingsImportHtmxAndAlpineOnce(): void
     {
         foreach (self::LISTING_TEMPLATES as $tipo => $view) {
@@ -727,6 +791,21 @@ class TpvmodTwigTemplatesTest extends TestCase
     private function regionId(string $tipo): string
     {
         return 'tpvmod-' . $tipo . '-region';
+    }
+
+    /**
+     * Extract the first <input …> tag carrying the given name attribute, or ''
+     * when absent. The negated class matches across newlines, so multi-line
+     * tags are captured whole.
+     */
+    private function inputTagFor(string $content, string $name): string
+    {
+        $pattern = '/<input\b[^>]*\bname="' . preg_quote($name, '/') . '"[^>]*>/';
+        if (preg_match($pattern, $content, $matches) === 1) {
+            return $matches[0];
+        }
+
+        return '';
     }
 
     /**
