@@ -212,11 +212,35 @@ class TpvmodTwigTemplatesTest extends TestCase
         );
     }
 
-    public function testGuardarClienteRunsNativeConstraintValidation(): void
+    public function testGuardarClienteValidatesOnlyItsOwnControls(): void
     {
         $js = file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
         $this->assertIsString($js);
-        $this->assertStringContainsString('document.f_cliente_tpv.reportValidity()', $js);
+
+        // Mandatory client controls (name and both group selects) are still
+        // validated natively before the AJAX save.
+        $this->assertStringContainsString('function tpvmodClienteFormularioValido()', $js);
+        $this->assertStringContainsString('if (!tpvmodClienteFormularioValido())', $js);
+        $this->assertStringContainsString('element.reportValidity()', $js);
+
+        // An invalid control inside an inactive tab pane is not focusable: its
+        // tab must be activated before reporting so the message stays visible.
+        $this->assertStringContainsString("closest('.tab-pane')", $js);
+        $this->assertStringContainsString(".tab('show')", $js);
+
+        // The address sub-form has its own save button: its required fields
+        // must never gate the client save.
+        $this->assertStringContainsString("getElementById('f_direccion_tpv')", $js);
+        $this->assertStringContainsString('direccionForm.contains(element)', $js);
+    }
+
+    public function testGuardarDireccionValidatesItsRequiredAddress(): void
+    {
+        $js = file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
+        $this->assertIsString($js);
+
+        $this->assertStringContainsString("form.querySelector('[name=\"direccion\"]')", $js);
+        $this->assertStringContainsString('direccion.reportValidity()', $js);
     }
 
     public function testTpvmodJsIncludesUnsavedChangesGuard(): void

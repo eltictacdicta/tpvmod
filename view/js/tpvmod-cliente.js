@@ -186,6 +186,50 @@ function tpvmodClienteGrupoDescuentoChange(select)
    });
 }
 
+/**
+ * Validate the client form before saving it.
+ *
+ * A plain form.reportValidity() is not usable here: the form hosts three tabs
+ * plus the address sub-form, and an invalid control inside an inactive tab
+ * pane is not focusable. The browser then blocks the save without showing any
+ * message, so the user cannot tell why nothing happened. The address fields
+ * belong to their own save button and must not gate the client save either.
+ *
+ * Report the first invalid client control instead, activating its tab first so
+ * the message is visible.
+ *
+ * Returns true when the client form is valid.
+ */
+function tpvmodClienteFormularioValido()
+{
+   var form = document.f_cliente_tpv;
+   if (!form || typeof form.reportValidity !== 'function') {
+      return true;
+   }
+
+   var direccionForm = document.getElementById('f_direccion_tpv');
+
+   for (var i = 0; i < form.elements.length; i++) {
+      var element = form.elements[i];
+      if (!element.willValidate || element.checkValidity()) {
+         continue;
+      }
+      if (direccionForm && direccionForm.contains(element)) {
+         continue;
+      }
+
+      var panel = $(element).closest('.tab-pane');
+      if (panel.length && !panel.hasClass('active')) {
+         $('.nav-tabs a[href="#' + panel.attr('id') + '"]').tab('show');
+      }
+
+      element.reportValidity();
+      return false;
+   }
+
+   return true;
+}
+
 function tpvmodGuardarCliente()
 {
    if (!document.f_cliente_tpv) {
@@ -195,8 +239,7 @@ function tpvmodGuardarCliente()
    // The form submits through this handler (onsubmit="return false;"), so run
    // the native constraint validation explicitly to make the mandatory selects
    // and name meaningful before hitting the server.
-   if (typeof document.f_cliente_tpv.reportValidity === 'function'
-      && !document.f_cliente_tpv.reportValidity()) {
+   if (!tpvmodClienteFormularioValido()) {
       return;
    }
 
@@ -223,7 +266,17 @@ function tpvmodGuardarCliente()
 
 function tpvmodGuardarDireccion()
 {
-   if (!document.getElementById('f_direccion_tpv')) {
+   var form = document.getElementById('f_direccion_tpv');
+   if (!form) {
+      return;
+   }
+
+   // The address sub-form is nested inside the client form, so the client save
+   // skips its controls. Validate the required address field here, where it is
+   // actually saved.
+   var direccion = form.querySelector('[name="direccion"]');
+   if (direccion && !direccion.checkValidity()) {
+      direccion.reportValidity();
       return;
    }
 
