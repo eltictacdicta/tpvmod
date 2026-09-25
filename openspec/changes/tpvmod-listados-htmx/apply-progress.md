@@ -777,3 +777,134 @@ The parts assertable without a session are covered by the harnesses and the audi
 delegated to verify). Suite green (`OK (176 tests, 1298 assertions)`); `phpstan`
 no new errors; PR3 slice 1107 changed lines within the 2400 budget. **Ready for
 `sdd-verify`** on the PR3 slice.
+
+---
+
+# PR3 follow-up — U21 (post-verify amendment) — apply-progress
+
+> Continues the change after the authenticated browser smoke found the filter bar
+> hidden on every non-`buscar` state. Branch: `master` (nested `plugins/tpvmod`
+> repo; the executor was told NOT to create or switch branches). Markup-only: no
+> controller, helper, schema or dependency change. The worktree carries unrelated
+> human WIP (`lib/tpvmod_opcionales*.php`, `view/js/tpvmod.js`,
+> `tests/TpvmodOpcional*`), left untouched and unstaged.
+
+## Status
+
+| Field | Value |
+|---|---|
+| Mode | **Strict TDD** (`strict_tdd: true`) |
+| Unit | **U21** — always-visible filter bar (LHT-13, `views` delta) |
+| Slice size | **85 changed lines** (`+77 / −8`: test `+77`, four templates `−2` each) — within the 800 budget |
+| Baseline (Safety Net) | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml` → `OK (180 tests, 1309 assertions)` (includes unrelated human WIP tests) |
+| Final plugin suite | `OK (181 tests, 1337 assertions)` |
+| `phpstan` | **No new errors** (1 pre-existing, byte-identical: `tests/Core/PluginEnableAjaxSafetyTest.php:308`) |
+| Twig compile harness | the 4 listings → `TWIG LINT OK` |
+| Authenticated browser smoke | **delegated to `sdd-verify`** (needs an agent session) |
+
+## Unit
+
+| Unit | Goal | Status |
+|---|---|---|
+| U21 | Remove the `{% if fsc.mostrar == 'buscar' %}` guard that wraps `#f_custom_search` in the four listings, so the bar renders in every listing state | ✅ applied |
+
+## Files changed (U21)
+
+| File | Action | What was done | Lines |
+|---|---|---|---|
+| `view/tpvmod_presupuestos.html.twig` | modified | removed the form-block guard line + its matching `{% endif %}` | −2 |
+| `view/tpvmod_facturas.html.twig` | modified | same | −2 |
+| `view/tpvmod_albaranes.html.twig` | modified | same | −2 |
+| `view/tpvmod_pedidos.html.twig` | modified | same | −2 |
+| `tests/TpvmodTwigTemplatesTest.php` | modified | `testFilterBarRendersInEveryListingState` + `isInsideMostrarBuscarGuard()` structural helper | +77 |
+
+No controller, `lib/`, fragment, theme or Composer dependency was touched. The
+form keeps its `method="get"`, its `hx-get`/`hx-target`/`hx-select`/`hx-swap`/
+`hx-push-url` and its hidden `mostrar`/`order` fields; the autofocus-script guard
+and the tab `active`-class guard stay intact.
+
+## TDD Cycle Evidence (Hard Gate — Strict TDD)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| U21 | `TpvmodTwigTemplatesTest.php` | Contract (source, DB-free) | ✅ 180/180 (worktree baseline, incl. human WIP) | ✅ Written; run failed (`tpvmod_presupuestos.html.twig must not wrap the filter form in a mostrar == buscar guard` — `Failed asserting that true is false`) | ✅ Passed: `--filter testFilterBarRendersInEveryListingState` → `OK (1 test, 28 assertions)`; full suite `OK (181 tests, 1337 assertions)` | ✅ 4 templates: structural no-open-buscar-guard at the form byte; form still precedes the region; exactly 2 remaining `{% if fsc.mostrar == 'buscar' %}` occurrences; autofocus script still behind its guard | ➖ None needed (guard removal only; no abstraction, no new filter) |
+
+### Work Unit Evidence (Hard Gate — all modes)
+
+| Unit | Focused test command + exact result | Runtime harness command/scenario + exact result | Rollback boundary |
+|---|---|---|---|
+| U21 | `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest` → green; full suite `OK (181 tests, 1337 assertions)` | Throwaway Twig compile harness (deleted after the run) over the 4 listings → `PASS compile …` ×4 → `TWIG LINT OK`. The browser render (form visible for `mostrar=todo`) needs an authenticated agent session → delegated to `sdd-verify` | Revert the four listing templates' guard hunks (the removed `{% if … %}` + `{% endif %}` pair) plus `testFilterBarRendersInEveryListingState` + `isInsideMostrarBuscarGuard()`; no other file depends on this change |
+
+## Test Summary
+
+- **Tests added**: 1 method + 1 private helper (`testFilterBarRendersInEveryListingState`, `isInsideMostrarBuscarGuard()`). Suite 180 → 181 (worktree baseline already included unrelated human WIP tests).
+- **Total tests passing**: 181 (1337 assertions); started at 180 (1309 assertions).
+- **Layers used**: Contract/source (DB-free) 1, Twig compile harness 1 (not committed), Unit 0, E2E 0.
+- **Pure functions created**: 0.
+
+## Verification (U21) — real command output
+
+### 1. `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml`
+
+```
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.33
+Configuration: /var/www/html/plugins/tpvmod/phpunit.xml
+
+...............................................................  63 / 181 ( 34%)
+............................................................... 126 / 181 ( 69%)
+.......................................................         181 / 181 (100%)
+
+Time: 00:00.056, Memory: 8.00 MB
+
+OK (181 tests, 1337 assertions)
+```
+
+### 2. `ddev exec composer phpstan`
+
+```
+ ------ ----------------------------------------------------------------------
+  Line   tests/Core/PluginEnableAjaxSafetyTest.php
+ ------ ----------------------------------------------------------------------
+  308    Method Tests\Core\AjaxGuardTestPluginManager::applyPluginSchemaUpdates()
+         should return array{success: bool, changes: list<string>, errors:
+         list<string>} but returns array{success: true, errors: array{}}.
+         🪪  return.type
+         💡  Array does not have offset 'changes'.
+ ------ ----------------------------------------------------------------------
+
+
+ [ERROR] Found 1 error
+```
+
+**Interpreting this**: the single error is pre-existing and byte-identical to the
+baseline (same file, same line, same rule). PHPStan analyses `paths: [src, tests]`
+only, so `plugins/tpvmod/**` cannot introduce an error. Gate reading: **no new
+errors.**
+
+### 3. Twig compile harness (throwaway, deleted)
+
+```
+PASS compile tpvmod_presupuestos.html.twig
+PASS compile tpvmod_facturas.html.twig
+PASS compile tpvmod_albaranes.html.twig
+PASS compile tpvmod_pedidos.html.twig
+TWIG LINT OK
+```
+
+## Decisions / deviations
+
+| # | Decision | Why |
+|---|---|---|
+| U21-1 | The RED assertion is structural (an if/endif stack walker detecting an unclosed `fsc.mostrar == 'buscar'` condition at the form's byte offset), not only an occurrence count | An occurrence count is brittle (a new unrelated guard would drift it); the stack walker fails exactly when the form is genuinely inside the guard — the change under test |
+| U21-2 | Kept a supplementary `assertSame(2, …)` on the exact guard string | Pins that only the form guard was removed and the two documented guards (autofocus script, `buscar` tab `active`) remain |
+| U21-3 | No `hx-*`/field change to the form | The transport contract (LHT-04) is frozen and stays green in the full suite; U21 is markup-visibility only |
+| U21-4 | Delegated the browser render to `sdd-verify` | It needs an authenticated agent session (`config.yaml` smoke flow); the compile harness plus the source contract prove the assertable half |
+
+## Status
+
+**21/21 units complete** (U1–U20 unchanged; U21 applied). Suite green
+(`OK (181 tests, 1337 assertions)`); `phpstan` no new errors. **Ready for
+`sdd-verify`** on the U21 amendment. Only the authenticated browser smoke items
+stay delegated.

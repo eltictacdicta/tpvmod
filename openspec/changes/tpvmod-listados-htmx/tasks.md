@@ -19,7 +19,9 @@
 > `apply-progress.md` → "PR3 batch". The U10/PR2/PR3 authenticated browser
 > smoke stays pending for `sdd-verify`. **Post-verify amendment:** that smoke
 > found the filter bar hidden on every non-`buscar` state; **U21 (LHT-13)** was
-> added to remove the inherited guard.
+> added to remove the inherited guard. **U21 is applied** (see
+> `apply-progress.md` → "PR3 follow-up — U21"); the filter bar now renders in
+> every listing state.
 
 ## Execution rules (mandatory)
 
@@ -523,9 +525,9 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 | **Est.** | 5 files · ~8–12 prod (guard removal) + ~30 test |
 
 **TDD — RED first**
-- [ ] RED — `testFilterBarRendersInEveryListingState`: for each of the four templates assert the `f_custom_search` form block is **not** wrapped in a `{% if fsc.mostrar == 'buscar' %}` guard (the guard occurrence count per template is 2, not 3), while the form still precedes the region. Run → fail (guard still opens the form block).
-- [ ] GREEN — delete only the guard line that opens the form block and its matching `{% endif %}` in the four templates; leave the autofocus guard and the tab `active` guard intact.
-- [ ] REFACTOR — none; no controller/helper change, no new Twig filter.
+- [x] RED — `testFilterBarRendersInEveryListingState`: for each of the four templates assert the `f_custom_search` form block is **not** wrapped in a `{% if fsc.mostrar == 'buscar' %}` guard. The assertion is **structural** (an unclosed buscar-guard at the form's byte offset, via an if/endif stack walker) — the occurrence count (2, not 3) is only a supplementary guard. Also asserts the form still precedes the region and that the autofocus script stays behind its buscar guard. Run → **fail** (`Failed asserting that true is false` at the form-guard check, first template).
+- [x] GREEN — deleted only the guard line that opens the form block and its matching `{% endif %}` in the four templates; the autofocus guard and the tab `active` guard were left intact.
+- [x] REFACTOR — none; no controller/helper change, no new Twig filter. Slice: **85 changed lines** (`+77 / −8`: test `+77`, four templates `−2` each) — within the 800-line budget. Focused `--filter TpvmodTwigTemplatesTest` green; full suite `OK (181 tests, 1337 assertions)`.
 
 **Verificación:** `form[name="f_custom_search"]` is present for `todo`/intermediate/`buscar` in the four listings; the form stays above the region and outside it; the autofocus and tab `active` guards still count 2 per template.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
