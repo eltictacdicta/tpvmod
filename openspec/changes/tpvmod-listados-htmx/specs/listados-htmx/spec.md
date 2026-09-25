@@ -515,3 +515,65 @@ tests-with-code mandatory. The existing controller dispatch assertion
 - **GIVEN** the existing assertion that the listing controllers keep `tpvmod_cliente_ajax_dispatch`
 - **WHEN** the suite runs after the change
 - **THEN** the assertion still passes (the dispatch call is retained, harmless when the modal is absent)
+
+### Requirement: LHT-13 — Always-visible filter bar across listing states
+
+Each of the four listing views MUST render the `#f_custom_search` filter bar in
+**every** `mostrar` state the module supports — the default tab (`todo`), the
+intermediate tabs (`pendientes`, `rechazados`, `sinpagar` where the module
+defines them) and `buscar` — not only in `buscar`. The bar MUST stay above the
+tabs and outside the swapped region (LHT-03), so a region swap MUST NOT replace
+its inputs, clear their values or steal focus. Submitting the bar MUST run the
+listing search (`hx-get` against the listing URL with `mostrar=buscar`; the
+region is swapped with `hx-push-url="true"`), as today. With JavaScript
+disabled, submitting the bar MUST still work as a full-page GET carrying
+`mostrar=buscar`. Always-visible MUST NOT be read as "the filters apply inside
+the other tabs": the non-`buscar` tabs keep their own unfiltered listing, and
+the entered filters take effect only once the search is submitted.
+
+(This amends the LHT-03 placement contract. The authenticated browser smoke
+found `form[name="f_custom_search"]` absent for `&mostrar=todo` in the four
+listings because the form was still wrapped in the inherited
+`{% if fsc.mostrar == 'buscar' %}` guard — see `verify-report.md`. Only the form
+guard changes; the autofocus script guard and the tab `active` guard stay.)
+
+#### Scenario: Filter bar renders in every listing state
+
+- **GIVEN** each of the four listings
+- **WHEN** it is requested with its default tab, each intermediate tab it defines, and `mostrar=buscar`
+- **THEN** `form[name="f_custom_search"]` is present in the response in every one of those states
+- **AND** no `{% if fsc.mostrar == 'buscar' %}` guard wraps the form block in the template
+
+#### Scenario: Filter bar stays above the tabs and outside the region
+
+- **GIVEN** a listing rendered in any state
+- **WHEN** the document order is inspected
+- **THEN** the filter form precedes the tabs
+- **AND** the filter form is outside `#tpvmod-<tipo>-region`
+
+#### Scenario: A swap does not replace the filter inputs
+
+- **GIVEN** the agent typed a `query` value or selected a serie/date while on a non-`buscar` state
+- **WHEN** any control triggers a region swap
+- **THEN** the filter form element is not replaced
+- **AND** the entered values and focus are retained
+
+#### Scenario: Submitting the bar runs the search
+
+- **GIVEN** the bar is visible in a non-`buscar` state
+- **WHEN** the agent submits it
+- **THEN** an `hx-get` runs against the listing URL with `mostrar=buscar` and the current filters
+- **AND** the region is swapped and the URL is updated (`hx-push-url="true"`)
+
+#### Scenario: JavaScript-disabled submit works
+
+- **GIVEN** JavaScript is disabled in the browser
+- **WHEN** the agent submits the bar in a non-`buscar` state
+- **THEN** the native GET navigation returns the full page with `mostrar=buscar` and the entered filters
+
+#### Scenario: Visibility does not extend the filter scope
+
+- **GIVEN** the agent is on `pendientes` with a `query` typed but not submitted
+- **WHEN** the `pendientes` listing renders
+- **THEN** it shows the same rows as without the unsubmitted text
+- **AND** the filter takes effect only after the search is submitted

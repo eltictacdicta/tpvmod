@@ -147,12 +147,26 @@ stable id (`#tpvmod-presupuestos-region`, `#tpvmod-facturas-region`,
 the order dropdown), the tabs, the results table and the pagination MUST live
 inside that wrapper; the filter form MUST live outside it.
 
+The filter form MUST be rendered unconditionally: the `#f_custom_search` block
+MUST NOT be wrapped in a `{% if fsc.mostrar == 'buscar' %}` guard, so the bar is
+present in the markup for every listing state. This is the markup half of
+`listados-htmx` LHT-13; the runtime behavior is owned by that delta and is not
+duplicated here.
+
 #### Scenario: Markup order is filter form, then region
 
 - GIVEN a listing template is parsed
 - WHEN the byte offsets of the filter form and the region wrapper are compared
 - THEN the filter form appears first
 - AND the tabs are inside the region wrapper
+
+#### Scenario: The filter form carries no `mostrar` guard
+
+- GIVEN each of the four listing templates
+- WHEN the `f_custom_search` form block is inspected
+- THEN it is not wrapped in `{% if fsc.mostrar == 'buscar' %}`
+- AND the other two `fsc.mostrar == 'buscar'` uses per template (the autofocus
+  script and the tab `active` class) are untouched
 
 #### Scenario: Stable region id per module
 

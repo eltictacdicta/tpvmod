@@ -7,7 +7,7 @@
 > Forecast`), `design.md` (AD-1..AD-14, §1 helper signatures, §3 control→`hx-*`
 > table, §5 line search, §6 dates, §8 client dispatch, `## Verification map`,
 > `## File Changes`, `## Rollback and implementation order`), the three delta
-> specs (`listados-htmx` LHT-01..LHT-12, `views`, `tpv-cliente-modales`),
+> specs (`listados-htmx` LHT-01..LHT-13, `views`, `tpv-cliente-modales`),
 > `exploration.md` (F1–F10) and `decisions-pending.md` (D1–D7, confirmed).
 >
 > **Status:** PR1 (U1–U10) applied on branch `feat/tpvmod-listados-htmx-pr1`;
@@ -17,7 +17,9 @@
 > (`c0fdc08`, `f0cb1a7`, `47c24dc`) and **U19–U20 applied** (`4f5cedb` + the
 > U19–U20 docs commit). The PR3 checkboxes below are reconciled in
 > `apply-progress.md` → "PR3 batch". The U10/PR2/PR3 authenticated browser
-> smoke stays pending for `sdd-verify`.
+> smoke stays pending for `sdd-verify`. **Post-verify amendment:** that smoke
+> found the filter bar hidden on every non-`buscar` state; **U21 (LHT-13)** was
+> added to remove the inherited guard.
 
 ## Execution rules (mandatory)
 
@@ -504,6 +506,32 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 
 ---
 
+# PR 3 follow-up — post-verify amendment
+
+> Added after the authenticated browser smoke found the filter bar hidden on every
+> non-`buscar` state. Markup-only: no controller, helper, schema or dependency
+> change.
+
+### U21 — Always-visible filter bar (LHT-13, views delta)
+
+| Campo | Valor |
+|---|---|
+| **Objetivo** | Remove the `{% if fsc.mostrar == 'buscar' %}` guard that wraps the `#f_custom_search` form block in the four listing views, so the bar renders in every listing state (`todo`, the intermediate tabs, `buscar`). The form stays above the tabs and outside the region (U17); the other two `mostrar == 'buscar'` uses per template (the autofocus script guard and the tab `active` class) stay untouched. No controller or helper change. |
+| **Archivos** | `view/tpvmod_{presupuestos,facturas,albaranes,pedidos}.html.twig`; extend `tests/TpvmodTwigTemplatesTest.php` |
+| **Dependencias** | U17 (reorder); applied after the U20 gate |
+| **Cubre** | LHT-13 (T `testFilterBarRendersInEveryListingState`), views delta "Filter form precedes the listing region" |
+| **Est.** | 5 files · ~8–12 prod (guard removal) + ~30 test |
+
+**TDD — RED first**
+- [ ] RED — `testFilterBarRendersInEveryListingState`: for each of the four templates assert the `f_custom_search` form block is **not** wrapped in a `{% if fsc.mostrar == 'buscar' %}` guard (the guard occurrence count per template is 2, not 3), while the form still precedes the region. Run → fail (guard still opens the form block).
+- [ ] GREEN — delete only the guard line that opens the form block and its matching `{% endif %}` in the four templates; leave the autofocus guard and the tab `active` guard intact.
+- [ ] REFACTOR — none; no controller/helper change, no new Twig filter.
+
+**Verificación:** `form[name="f_custom_search"]` is present for `todo`/intermediate/`buscar` in the four listings; the form stays above the region and outside it; the autofocus and tab `active` guards still count 2 per template.
+**Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
+
+---
+
 ## Design verification map → task placement
 
 `H` = `TpvmodListadosHelpersTest` (DB-free); `T` = `TpvmodTwigTemplatesTest`
@@ -523,6 +551,7 @@ extensions (DB-free); `S` = manual smoke in `verify-report.md`.
 | LHT-10 | — | `testLineSearchFragmentContract` (U13 listing half, U14 fragment half); `testFacturasLineSearchPassesOffset` (U9) | U15, U20 |
 | LHT-11 | `testBuildListUrlEncodesAndDropsEmpty`, `testBuildListUrlKeepsZero`, `testPagerLinksBoundsAndPrunes`, `testPagerLinksEmptyWhenSinglePage`, `testOrderTokenFor` (U2/U3) | `testListingControllersGateCronAndBuildUrls` (U6 URL half, U8 cron half) + `testNoLocalHtmxDetectionHelper` (U8) | U10, U15, U20 |
 | LHT-12 | H suite green (U1–U5) | suite green (U10, U15, U20) | `phpstan` (U10, U15, U20) |
+| LHT-13 | — | `testFilterBarRendersInEveryListingState` (U21) | U21: bar visible on the default and intermediate tabs; submit jumps to `buscar` |
 | `views` delta | — | U14 (fragment pager), U17 (form precedes region), U18 (picker absent, narrowed assertion), U19 (native dates), existing `testEveryPostFormCarriesCsrfField` stays green (U13) | U20 |
 | `tpv-cliente-modales` delta | — | U18 (modal stays on `tpvmod2`/`tpvmodedita`; absent from listings; `&codcliente=` read-only + clear) | U20 |
 | TCP-01 | — | U13 (no `$.ajax`/`mas_resultados(`) | U15 |
@@ -545,5 +574,5 @@ U1 ─┬─▶ U2 ─▶ U3 ─┐
                                         └─▶ U11 ─┬─▶ U12 ─┐
                                                  └─▶ U13 ─┼─▶ U14 ─▶ U15 (PR2 gate)
                                                           │        └─▶ U16 ─▶ ...
-                                                          └─▶ U17 ─▶ U18 ─▶ U19 ─▶ U20 (PR3 gate)
+                                                           └─▶ U17 ─▶ U18 ─▶ U19 ─▶ U20 (PR3 gate) ─▶ U21 (post-verify amendment)
 ```
