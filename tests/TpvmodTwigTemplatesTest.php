@@ -750,6 +750,130 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
+    /**
+     * LHT-14 (AD-15, §4.1): the bar lives outside the swapped region and is
+     * never re-rendered, so after every swap the single existing
+     * `htmx:after:swap` listener must re-synchronize the label, the hidden
+     * `codcliente` and the non-text controls' `hx-get` in place from the URL
+     * htmx already pushed (`location.search`). A second listener is forbidden
+     * and the call must run outside the Alpine guard (no-Alpine safety).
+     */
+    public function testFilterBarResyncsAfterSwap(): void
+    {
+        foreach (self::LISTING_TEMPLATES as $tipo => $view) {
+            $content = (string) file_get_contents($this->viewDir . '/' . $view);
+
+            // One swap listener only, and it owns exactly one re-sync call.
+            $this->assertSame(
+                1,
+                substr_count($content, "'htmx:after:swap'"),
+                $view . ' must keep exactly one htmx:after:swap listener'
+            );
+            $this->assertSame(
+                1,
+                substr_count($content, 'tpvmodResyncFilterBar();'),
+                $view . ' must call the filter-bar re-sync exactly once'
+            );
+            $this->assertStringContainsString(
+                'function tpvmodResyncFilterBar()',
+                $content,
+                $view . ' must define the filter-bar re-sync'
+            );
+
+            // It must run before and outside the Alpine guard, so the bar is
+            // re-synchronized even when Alpine is absent.
+            $resyncPos = strpos($content, 'tpvmodResyncFilterBar();');
+            $alpineGuardPos = strpos($content, 'if (!window.Alpine');
+            $alpineInitPos = strpos($content, 'window.Alpine.initTree(');
+            $this->assertNotFalse($resyncPos, $view . ' must call the re-sync');
+            $this->assertNotFalse($alpineGuardPos, $view . ' must keep the Alpine guard');
+            $this->assertNotFalse($alpineInitPos, $view . ' must re-init Alpine after a swap');
+            $this->assertLessThan(
+                (int) $alpineGuardPos,
+                (int) $resyncPos,
+                $view . ' the re-sync must run before the Alpine guard'
+            );
+            $this->assertLessThan(
+                (int) $alpineInitPos,
+                (int) $resyncPos,
+                $view . ' the re-sync must run before Alpine.initTree'
+            );
+
+            // State source: the URL htmx pushed before `after:swap`.
+            $this->assertStringContainsString(
+                'window.location.search',
+                $content,
+                $view . ' the re-sync must read the current listing URL'
+            );
+
+            // Label and hidden field follow the URL's codcliente, in place.
+            $this->assertStringContainsString("#tpvmod-cliente-activo'", $content, $view);
+            $this->assertStringContainsString("'input[name=\"codcliente\"]'", $content, $view);
+            $this->assertStringContainsString("label.value = ''", $content, $view);
+            $this->assertStringContainsString('hidden.value = codcliente', $content, $view);
+
+            // Every non-text control is rebuilt from its own server hx-get
+            // prefix, and the clear control is addressable by a stable hook.
+            foreach (['select[name="codserie"]', 'select[name="codagente"]', 'input[name="desde"]', 'input[name="hasta"]'] as $selector) {
+                $this->assertStringContainsString(
+                    "'" . $selector . "'",
+                    $content,
+                    $view . ' must address ' . $selector . ' in the re-sync'
+                );
+            }
+            $this->assertStringContainsString(
+                'data-tpvmod-role="cliente-clear"',
+                $content,
+                $view . ' must expose a stable client-clear hook'
+            );
+            $this->assertStringContainsString(
+                '[data-tpvmod-role="cliente-clear"]',
+                $content,
+                $view . ' the re-sync must address the client-clear hook'
+            );
+
+            // Own-key algebra: each non-text control drops its own key, while
+            // the clear control drops codcliente (LHT-14/§4.1: it must keep
+            // omitting the client, not set it to an empty value).
+            $ownKeys = [
+                ['select[name="codserie"]', 'codserie'],
+                ['select[name="codagente"]', 'codagente'],
+                ['input[name="desde"]', 'desde'],
+                ['input[name="hasta"]', 'hasta'],
+            ];
+            foreach ($ownKeys as [$selector, $key]) {
+                $this->assertStringContainsString(
+                    "['" . $selector . "', '" . $key . "']",
+                    $content,
+                    $view . ' must drop ' . $key . ' when rebuilding ' . $selector
+                );
+            }
+            $this->assertStringContainsString(
+                "tpvmodSwapRebuild(clear.getAttribute('hx-get'), 'codcliente')",
+                $content,
+                $view . ' the clear control must keep omitting codcliente'
+            );
+
+            // The URL rebuild reuses key-level URLSearchParams algebra over
+            // each control's own server-rendered prefix — no raw concatenation.
+            $this->assertStringContainsString('new URLSearchParams(', $content, $view);
+            $this->assertStringContainsString('params.delete(', $content, $view);
+            $this->assertStringContainsString("params.set('mostrar', 'buscar')", $content, $view);
+            $this->assertStringContainsString("params.set('offset', '0')", $content, $view);
+            $this->assertStringContainsString("getAttribute('hx-get')", $content, $view);
+            $this->assertStringContainsString("setAttribute('hx-get'", $content, $view);
+            $this->assertStringContainsString("setAttribute('href'", $content, $view);
+
+            // Text inputs are never replaced: the inline script only assigns
+            // values/attributes, it must not re-render the bar.
+            $script = $this->inlineScriptBlock($content);
+            $this->assertNotSame('', $script, $view . ' must keep the nonce script block');
+            $this->assertStringNotContainsString('outerHTML', $script, $view);
+            $this->assertStringNotContainsString('replaceWith', $script, $view);
+            $this->assertStringNotContainsString('innerHTML', $script, $view);
+        }
+    }
+
     public function testLineSearchFragmentContract(): void
     {
         foreach (self::LISTING_TEMPLATES as $tipo => $view) {
@@ -868,6 +992,26 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
 
         return false;
+    }
+
+    /**
+     * The nonce'd classic script block that owns the Alpine registration and
+     * the swap listener. Returned without the <script> wrapper so assertions
+     * can scope to the JS and ignore the markup's hx-swap="outerHTML".
+     */
+    private function inlineScriptBlock(string $content): string
+    {
+        $start = strpos($content, '<script {{ csp_nonce_attr() }}>');
+        if ($start === false) {
+            return '';
+        }
+
+        $end = strpos($content, '</script>', $start);
+        if ($end === false) {
+            return substr($content, $start);
+        }
+
+        return substr($content, $start, $end - $start);
     }
 
     /**

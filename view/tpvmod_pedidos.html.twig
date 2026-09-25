@@ -134,7 +134,7 @@
                   <input class="form-control" type="text" id="tpvmod-cliente-activo" value="{{ fsc.cliente ? fsc.cliente.nombre : '' }}" placeholder="Cualquier cliente" readonly="readonly"/>
                   {% if fsc.cliente %}
                   <span class="input-group-btn">
-                     <a class="btn btn-default" href="{{ fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0}) }}"
+                     <a class="btn btn-default" data-tpvmod-role="cliente-clear" href="{{ fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0}) }}"
                         hx-get="{{ fsc.list_url({'codcliente': '', 'mostrar': 'buscar', 'offset': 0}) }}"
                         hx-target="#tpvmod-pedidos-region" hx-select="#tpvmod-pedidos-region"
                         hx-swap="outerHTML" hx-push-url="true" hx-trigger="click" title="Quitar filtro">
@@ -428,10 +428,67 @@
 })();
 
 (function () {
+   // LHT-14 (AD-15, §4.1): the filter bar sits outside the swapped region and
+   // is never re-rendered, so re-synchronize it in place from the URL htmx
+   // already pushed. Plain DOM: it must run even when Alpine is absent.
+   function tpvmodSwapBase(hxGet) {
+      if (!hxGet) { return ''; }
+      var separator = hxGet.indexOf('?');
+      return separator === -1 ? hxGet : hxGet.slice(0, separator);
+   }
+
+   // Same key-level algebra as list_url($overrides, $omit): start from the
+   // current URL params, drop the control's own key, then set the tab/offset.
+   function tpvmodSwapRebuild(hxGet, ownKey) {
+      var base = tpvmodSwapBase(hxGet);
+      if (!base) { return ''; }
+      var params = new URLSearchParams(window.location.search || '');
+      if (ownKey) { params.delete(ownKey); }
+      params.set('mostrar', 'buscar');
+      params.set('offset', '0');
+      return base + '?' + params.toString();
+   }
+
+   function tpvmodResyncFilterBar() {
+      var form = document.querySelector('form[name="f_custom_search"]');
+      if (!form) { return; }
+
+      var codcliente = new URLSearchParams(window.location.search || '').get('codcliente') || '';
+
+      var label = form.querySelector('#tpvmod-cliente-activo');
+      if (label && codcliente === '') { label.value = ''; }
+
+      var hidden = form.querySelector('input[name="codcliente"]');
+      if (hidden) { hidden.value = codcliente; }
+
+      var controls = [
+         ['select[name="codserie"]', 'codserie'],
+         ['select[name="codagente"]', 'codagente'],
+         ['input[name="desde"]', 'desde'],
+         ['input[name="hasta"]', 'hasta']
+      ];
+      for (var i = 0; i < controls.length; i++) {
+         var control = form.querySelector(controls[i][0]);
+         if (!control) { continue; }
+         var rebuilt = tpvmodSwapRebuild(control.getAttribute('hx-get'), controls[i][1]);
+         if (rebuilt) { control.setAttribute('hx-get', rebuilt); }
+      }
+
+      var clear = form.querySelector('[data-tpvmod-role="cliente-clear"]');
+      if (clear) {
+         var clearUrl = tpvmodSwapRebuild(clear.getAttribute('hx-get'), 'codcliente');
+         if (clearUrl) {
+            clear.setAttribute('hx-get', clearUrl);
+            clear.setAttribute('href', clearUrl);
+         }
+      }
+   }
+
    if (window.__tpvmodListadoSwapBound === true) { return; }
    window.__tpvmodListadoSwapBound = true;
 
    document.addEventListener('htmx:after:swap', function (evt) {
+      tpvmodResyncFilterBar();
       if (!window.Alpine || typeof window.Alpine.initTree !== 'function') { return; }
       var ctx = evt && evt.detail ? evt.detail.ctx : null;
       window.Alpine.initTree(ctx && ctx.target ? ctx.target : document.body);
