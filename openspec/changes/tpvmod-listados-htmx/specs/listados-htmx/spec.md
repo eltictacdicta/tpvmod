@@ -16,6 +16,12 @@
 > `exploration.md` F1–F10; `decisions-pending.md` D1–D7. Core contracts
 > referenced: `htmx-core-support` (HCS-04/05/06/07/08/12/14), `list-search-security`
 > (LSS-01/02), `catalog-page-views` (CPV-06/CPV-08).
+>
+> Post-verify amendment: the authenticated browser smoke found the filter bar
+> stale after a region swap (clearing the client filter left the active-client
+> label, the hidden `codcliente` and the other controls' `hx-get` pointing at the
+> cleared customer, and the next filter change re-applied it). **LHT-14** adds the
+> missing post-swap re-synchronization; the markup half lives in the `views` delta.
 
 ## ADDED Requirements
 
@@ -577,3 +583,69 @@ guard changes; the autofocus script guard and the tab `active` guard stay.)
 - **WHEN** the `pendientes` listing renders
 - **THEN** it shows the same rows as without the unsubmitted text
 - **AND** the filter takes effect only after the search is submitted
+
+### Requirement: LHT-14 — Post-swap filter-bar re-synchronization
+
+The `#f_custom_search` bar sits outside the swapped region (LHT-03, LHT-13), so a
+region swap never replaces its inputs. The bar MUST NOT remain stale after a
+swap: once a swap completes, the bar MUST be re-synchronized with the listing URL
+currently reflected in the address bar (`hx-push-url`), without replacing the
+bar's text inputs. Re-synchronization MUST cover:
+
+- the active-client label and the hidden `codcliente` field: both MUST reflect the
+  `codcliente` carried by the current URL; when the URL carries none, both MUST be
+  empty;
+- the `hx-get` of the bar's non-text controls (serie, agente, dates and the
+  client-clear control): each MUST be rebuilt against the current URL state, so a
+  filter already removed from the URL MUST NOT reappear in a later request;
+- the text inputs (`query`, `desde`, `hasta`): MUST NOT be replaced, and MUST keep
+  their value and focus (LHT-03 preserved).
+
+This corrects the authenticated-smoke defect: with the bar outside the region and
+nothing re-synchronizing it, clearing the client filter left the label, the hidden
+`codcliente` and the other controls' `hx-get` pointing at the cleared customer, so
+the next filter change re-applied `codcliente`. The name/phone search and every
+filter MUST keep working unchanged.
+
+#### Scenario: Clearing the client empties the label and the hidden field
+
+- **GIVEN** the listing is filtered by `&codcliente=CLI001`
+- **WHEN** the agent activates the clear control and the region swap completes
+- **THEN** the current URL no longer carries `codcliente`
+- **AND** the active-client label is empty
+- **AND** the hidden `codcliente` field is empty
+
+#### Scenario: Applying a client filter re-synchronizes the label and the hidden field
+
+- **GIVEN** the listing is shown without a client filter
+- **WHEN** the agent follows a row's `[+]` link and the region swap completes
+- **THEN** the current URL carries that row's `codcliente`
+- **AND** the active-client label and the hidden `codcliente` show that customer
+
+#### Scenario: A later control change does not re-apply the cleared client
+
+- **GIVEN** the agent cleared the client filter via a region swap
+- **WHEN** the agent then changes a non-text bar control (serie, agente or a date)
+- **THEN** the resulting request URL does not carry `codcliente`
+- **AND** the swapped region shows the unfiltered results
+
+#### Scenario: Bar controls' `hx-get` follows the current URL
+
+- **GIVEN** a region swap updated the URL with no client filter
+- **WHEN** the bar's non-text controls are inspected after the swap
+- **THEN** each control's `hx-get` reflects the current URL state
+- **AND** no control's `hx-get` still carries a `codcliente` the URL dropped
+
+#### Scenario: Text inputs are not replaced and keep focus
+
+- **GIVEN** the agent focused the `query` input or a native date input after typing
+- **WHEN** any control triggers a region swap
+- **THEN** the text input element is not replaced
+- **AND** its value and focus are retained (LHT-03 preserved)
+
+#### Scenario: Search and filters keep working
+
+- **GIVEN** the re-synchronized bar
+- **WHEN** the agent submits a name/phone search or changes a filter
+- **THEN** the region swaps with the matching rows exactly as before
+- **AND** no filter is dropped or duplicated by the re-synchronization

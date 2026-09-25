@@ -3,7 +3,11 @@
 > Plugin-local SDD. Change root: `plugins/tpvmod/openspec/changes/tpvmod-listados-htmx/`.
 > Core `openspec/` intentionally NOT touched.
 > Inputs: `proposal.md`; `specs/{listados-htmx,views,tpv-cliente-modales}/spec.md`
-> (LHT-01..LHT-12); `exploration.md` (F1–F10); `decisions-pending.md` (D1–D7, confirmed).
+> (LHT-01..LHT-14); `exploration.md` (F1–F10); `decisions-pending.md` (D1–D7, confirmed).
+> LHT-13/LHT-14 are post-verify amendments: the authenticated smoke first found the
+> filter bar hidden on non-`buscar` states (LHT-13), then stale after a swap (LHT-14).
+> This document carries their design half in AD-15 and §4.1; the production change is
+> task **U22**.
 > Core contracts traced: `htmx-core-support` (HCS-04/05/06/07/08/12/14/15), ABS-01..03,
 > `list-search-security` (LSS-01/02), `tarifario-catalog-htmx-pilot` (TCP-01..TCP-10).
 > Verified against the codebase; two premises of the earlier draft are **corrected here**
@@ -37,6 +41,7 @@ patterns. Shared pure logic lives in `lib/tpvmod_listados.php`.
 | AD-12 | Full text = portable `lower(col) LIKE '<escaped>'` + `codcliente IN (subquery)`. | MySQL `FULLTEXT`/`MATCH`, PostgreSQL `tsvector`. | No repo precedent, no index concept in `model/table/*.xml`, needs an engine branch, and these listings are small. §7. |
 | AD-13 | Filter form keeps its `{% if fsc.mostrar == 'buscar' %}` guard, moved above the tabs. | Always-visible form. | D4 mandates position, not visibility; `[+]`/`?codcliente=` still auto-switch the controller to `mostrar=buscar`. |
 | AD-14 | Top bar splits: the order dropdown moves inside the region toolbar; reload/home/Nuevo/Rechazar/extensions and `b_buscar_lineas` stay outside. | Whole top bar inside. | The order checkmark must be inside to stay correct after a swap (LHT-03); action buttons must not be re-emitted per swap. |
+| AD-15 | After every swap, the **single** existing `htmx:after:swap` listener also calls a plain-DOM `tpvmodResyncFilterBar()` that re-derives the bar from the current `location.search` (htmx pushed it before `after:swap`): empty/fill `#tpvmod-cliente-activo` and the hidden `codcliente`, and rebuild the non-text controls' `hx-get`/`href` by key-level `set`/`delete` over the server-rendered `hx-get` prefix (the `list_url()` base). Text inputs (`query`, `desde`, `hasta`) are never replaced. | A second `htmx:after:swap` binding; a server-emitted URL map; re-rendering the bar. | `testListingsImportHtmxAndAlpineOnce` pins **exactly one** `'htmx:after:swap'` occurrence per view, and the bar is outside the region and never re-rendered, so the fix belongs in the existing listener. Reusing each control's own server-rendered `hx-get` prefix keeps the canonical `list_url()` base and encoding and forbids raw concatenation (LHT-11). §4.1. |
 
 ## 1. Shared helpers — `plugins/tpvmod/lib/tpvmod_listados.php`
 
@@ -312,6 +317,7 @@ No parameter renaming: the controllers already read `mostrar`, `offset`, `order`
     if (window.__tpvmodListadoSwapBound === true) { return; }
     window.__tpvmodListadoSwapBound = true;
     document.addEventListener('htmx:after:swap', function (evt) {
+        tpvmodResyncFilterBar();                     // AD-15, §4.1 — runs even without Alpine
         if (!window.Alpine || typeof window.Alpine.initTree !== 'function') { return; }
         var ctx = evt && evt.detail ? evt.detail.ctx : null;
         window.Alpine.initTree(ctx && ctx.target ? ctx.target : document.body);
@@ -321,18 +327,91 @@ No parameter renaming: the controllers already read `mostrar`, `offset`, `order`
 {{ alpine.boot() }}
 ```
 
-- **Component**: `tpvmodListado`, one name for all four modules; swap-scoped presentation only
-  (`loading` → region class). It owns **no** list state: `mostrar`/`order`/`offset`/filters/rows
-  are server-rendered inside the region, so `Alpine.initTree(target)` after a swap re-reads
-  server state.
+- **Component + swap listener**: `tpvmodListado`, one name for all four modules; swap-scoped
+  presentation only (`loading` → region class). It owns **no** list state: `mostrar`/`order`/
+  `offset`/filters/rows are server-rendered inside the region, so `Alpine.initTree(target)` after
+  a swap re-reads server state. The single swap listener now also owns the **bar
+  re-synchronization** (AD-15, §4.1): it calls `tpvmodResyncFilterBar()` before
+  `Alpine.initTree`, and that call is plain DOM — no Alpine state, no second listener.
 - **Idempotency**: `window.__tpvmodListadoRegistered` and `window.__tpvmodListadoSwapBound`
   (catalogo precedent, `ventas_articulos.html.twig:413,471`).
 - **Same seam as tarifario (TCP-07)**: colon-style `'htmx:after:swap'` and
-  `evt.detail.ctx.target`, identical to `catalogo-main.js:541-578`.
+  `evt.detail.ctx.target`, identical to `catalogo-main.js:541-578`; the bar re-sync runs on the
+  same single seam (§4.1).
 - CSP: classic nonce'd script, no inline expression beyond `regionClass()`. Macro boot order is
   irrelevant (both assets are `defer`).
 - `Macro/HtmxCrud.html.twig` is **not** imported (AD-5); `htmx-crud.js` is inert without its
   `data-fs-crud-config` script (`view/js/htmx-crud.js:11-14`) and is not loaded here.
+
+### 4.1 Post-swap filter-bar re-synchronization (LHT-14, AD-15)
+
+The bar is outside the region (LHT-03/LHT-13) and is never re-rendered by a swap, so its label,
+hidden `codcliente` and non-text controls' `hx-get` go stale: clearing the client left the label,
+the hidden field and the other controls' URLs pointing at the cleared customer, so the next filter
+change re-applied it. The fix is a plain-DOM `tpvmodResyncFilterBar()` invoked from the single
+listener above, **before** `Alpine.initTree` and **outside** that call's Alpine guard, so it runs
+even if Alpine is absent. It is defensive on entry (returns when `#f_custom_search` is missing) and
+idempotent by construction (it only sets values/attributes from the URL).
+
+- **State source.** `window.location.search`. With `hx-push-url="true"` htmx has already pushed the
+  request URL before `htmx:after:swap` fires, so the parsed `URLSearchParams` is the authoritative
+  filter state and the re-sync never reads the stale bar to decide state.
+- **Base URL (no duplication of the builder).** Each bar control already carries a server-built
+  `hx-get` whose prefix is `fsc.url()` (`index.php?page=<name>`); the re-sync takes that prefix
+  (text before `?`) and replaces **only** the query string with the transformed `location.search`.
+  The base and its encoding stay the helper's output (`tpvmod_build_list_url`), so there is no
+  `&key=value` concatenation and no second encoder (LHT-11).
+- **Parameter algebra = `list_url($overrides, $omit)`.** The transformation applies exactly the
+  helper's semantics at key level: start from the current URL params, apply `overrides`, then
+  `delete` the `$omit` keys. `URLSearchParams.set`/`delete` is used, never string building.
+
+| Target | In-place update |
+|---|---|
+| `#tpvmod-cliente-activo` | `value` emptied when the URL carries no `codcliente`; otherwise set from the active-client name hook (table below) |
+| `#f_custom_search input[name="codcliente"]` | `value` = the URL's `codcliente`, or `''` |
+| `select[name="codserie"]`, `select[name="codagente"]`, `input[name="desde"]`, `input[name="hasta"]` | `hx-get` rebuilt as `delete` own `name`, `set mostrar=buscar`, `set offset=0` — the §3.2 `list_url({'mostrar':'buscar','offset':0}, [ownKey])` form |
+| client-clear control | `hx-get` **and** `href` rebuilt as `delete codcliente`, `set mostrar=buscar`, `set offset=0` — the §3.2 `list_url({'codcliente':'','mostrar':'buscar','offset':0})` form, so it keeps **omitting** `codcliente` |
+
+- **Never replaced / never rewritten.** `input[name="query"]`, `input[name="desde"]` and
+  `input[name="hasta"]` elements: no `outerHTML`/`replaceWith`/`innerHTML` over the bar; only the
+  label/hidden `value` and the attributes above change. `desde`/`hasta` keep their value and focus
+  while their `hx-get` is refreshed (LHT-14 bullet 3, LHT-03 preserved).
+- **Order, tabs and pagination are NOT touched by the re-sync.** They live **inside** the swapped
+  region (§3.1, AD-14), so the server re-renders them from the same state that produced
+  `location.search`. Their scope is the region, not the bar; duplicating their URLs in JS would be
+  redundant and is explicitly avoided. The re-sync's scope is exactly the controls that are
+  *outside* the region.
+- **Controls that must keep omitting a parameter.** The client-clear control means "no client": its
+  rebuilt URL **deletes** `codcliente` (rather than setting an empty value), preserving the
+  builder's drop-empty semantics; likewise each select/date deletes its own key, because htmx
+  appends the triggering element's value (AD-4).
+
+**Hooks the `views` delta provides — and the gaps.**
+
+| Need | Stable hook | Status |
+|---|---|---|
+| active-client label | `id="tpvmod-cliente-activo"` | present (`views` delta) |
+| client code | `input[name="codcliente"]` (hidden) | present |
+| serie/agente/dates addressing + own-key omit | the control `name`s (`codserie`, `codagente`, `desde`, `hasta`) | present |
+| **active-client display name** | none | **missing from the `views` delta as written.** The URL carries only the code, so the label's human name has no source on the client. Recommended addition: a `data-tpvmod-cliente-nombre` attribute on the region root, server-rendered from `$this->cliente`, read after the swap. Without it the re-sync can only **empty** the label; it MUST leave a non-empty label untouched rather than replace a name with a bare code. |
+| **client-clear control identity** | none (only `title="Quitar filtro"`, and it is rendered `{% if fsc.cliente %}`) | **missing.** Recommended addition: a stable `id="tpvmod-cliente-clear"` (or `data-tpvmod-role="cliente-clear"`) on that control. |
+
+**Caveat — the clear control is conditionally rendered (out of U22 scope).** `views` renders the
+clear control only when `fsc.cliente` is set, and the bar is not re-rendered during a swap, so the
+control cannot appear on a swap that *adds* a client filter, nor disappear on a swap that clears
+one. The only htmx control that changes `codcliente` today is the clear control (removal): the `[+]`
+row link and deep links are **native navigations** (§3.2 lists no `hx-*` for `[+]`) and re-render the
+whole bar server-side. The re-sync therefore covers what a swap can produce — emptied label/hidden
+and `codcliente`-free control URLs after a clear. Dynamic show/hide of the clear control needs a
+stable hook plus an always-rendered element and is **a separate design decision**: not asserted by
+LHT-14 and not in U22. Residual, spec-silent: after a clear swap the now-inert clear button stays
+visible until the next full load — cosmetic only, accepted.
+
+**Residual, spec-silent — hidden `mostrar`/`order`.** LHT-14 enumerates the label, the hidden
+`codcliente` and the non-text control URLs; it does not cover the search form's hidden `mostrar`/
+`order`. `mostrar` is a constant `buscar` for that form, so it cannot drift; `order` can drift if
+the user changes the order inside the region and then submits the bar (the hidden field keeps its
+render-time value). Recorded for a possible follow-up rather than widened into U22.
 
 ## 5. htmx line search
 
@@ -542,7 +621,7 @@ whether to widen an existing `LHT-*` or accept the gap.
 `plugins/tpvmod/tests/TpvmodTwigTemplatesTest.php` (DB-free source/structural assertions).
 **S** = manual smoke step recorded in `verify-report.md`.
 
-### `listados-htmx` (LHT-01..LHT-12)
+### `listados-htmx` (LHT-01..LHT-14)
 
 | ID | H (helper test) | T (Twig/contract assertion) | S (smoke) |
 |---|---|---|---|
@@ -558,6 +637,8 @@ whether to widen an existing `LHT-*` or accept the gap.
 | LHT-10 | — | `testLineSearchFragmentContract`: `hx-post="{{ fsc.url() }}"`, `hx-target="#search_results"`, `hx-swap="innerHTML"`, `hx-trigger` with `delay`, `hx-sync`; marker absent from the four fragments; no `mas_resultados(`; each fragment has `hx-post` + `hx-vals` `offset` (facturas included); alerts use `<div>` not bare `<li>` | typing debounces and swaps; pager prev/next; client-scoped search; invalid token follows the POST rejection path |
 | LHT-11 | `testBuildListUrlEncodesAndDropsEmpty`, `testBuildListUrlKeepsZero`, `testPagerLinksBoundsAndPrunes`, `testPagerLinksEmptyWhenSinglePage`, `testOrderTokenFor` | `testListingControllersGateCronAndBuildUrls`: presupuestos + pedidos have `isHtmxRequest` adjacent to `cron_job()`; each controller uses `list_url(` and has no `"&query="`/`"&mostrar="` concatenation in `paginas()` | htmx paging does not execute the cron updates (DB/log observation) |
 | LHT-12 | the H suite itself runs with no DB via `plugins/tpvmod/phpunit.xml` | suite green | `ddev exec composer phpstan` |
+| LHT-13 | — | `testFilterBarRendersInEveryListingState` (U21): the `f_custom_search` block is not wrapped in a `{% if fsc.mostrar == 'buscar' %}` guard; the form still precedes the region; the autofocus guard stays | bar visible on the default and intermediate tabs; submitting jumps to `buscar` |
+| LHT-14 | — | `testFilterBarResyncsAfterSwap` (U22, §4.1): the single `'htmx:after:swap'` handler reads `location.search`, targets `id="tpvmod-cliente-activo"` and `input[name="codcliente"]`, rebuilds the `hx-get` of `select[name=codserie]`/`select[name=codagente]`/`input[name=desde]`/`input[name=hasta]` and the client-clear control, and never replaces the `query`/`desde`/`hasta` inputs (no `outerHTML`/`replaceWith` over the bar); `testListingsImportHtmxAndAlpineOnce` still counts exactly one `'htmx:after:swap'` | clear the client, then change a non-text filter → the request carries no `codcliente`; label + hidden empty after clearing (correct after a native `[+]`/deep-link reload); `query`/date inputs keep focus across a swap; name/phone search unchanged |
 
 ### `views` (delta)
 
@@ -569,6 +650,7 @@ whether to widen an existing `LHT-*` or accept the gap.
 | Filter form precedes the region | T `testRegionBoundaryAndOrder` |
 | Native date inputs | T `testNoDatepickerAndNativeDates` |
 | Client picker absent from the four listings | T `testListingViewsExcludeClientPicker` |
+| Filter bar exposes stable re-synchronization hooks | T `testFilterBarResyncsAfterSwap`: `id="tpvmod-cliente-activo"`, hidden `input[name="codcliente"]` and the control `name`s are addressable without re-rendering the bar; §4.1 gaps: the active-client name and the clear-control identity need `data-*`/id hooks (recommended) |
 
 ### `tpv-cliente-modales` (delta)
 
@@ -697,3 +779,4 @@ as spec gaps G1–G5 and residual risks below.
 | R5/R6 | Alpine double-registration; stale tab/order state | marker guards; controls inside the region |
 | R8 | Four-way clone drift (facturas extras) | shared helpers + per-module template assertions |
 | R11 | Line-model SQL in `clientes_facturacion` still uses `no_html()` interpolation | out of scope; documented, pre-existing, not regressed by this change |
+| R12 | Bar stays stale after a swap (cleared client re-applied by the next filter change) | AD-15/§4.1 re-syncs label, hidden and non-text control URLs from `location.search` inside the single listener; U22 + `testFilterBarResyncsAfterSwap`; clear-control show/hide and hidden `order` recorded as out-of-scope residuals (§4.1) |

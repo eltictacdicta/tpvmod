@@ -218,3 +218,32 @@ and MUST NOT be deleted.
 - WHEN they are inspected
 - THEN the modal include and the `tpvmod-cliente.js` load are still present
 - AND `view/js/tpvmod-cliente.js` is not deleted
+
+### Requirement: Filter bar exposes stable re-synchronization hooks
+
+The `#f_custom_search` bar is outside the swapped region and is never re-rendered
+by a swap, so its markup MUST expose stable, machine-addressable hooks that a
+post-swap re-synchronization can update in place without replacing the bar: the
+active-client label MUST keep `id="tpvmod-cliente-activo"`, the client filter MUST
+keep a `name="codcliente"` hidden input, and every non-text filter control MUST
+keep its `name` (`codserie`, `codagente`, `desde`, `hasta`). The markup MUST allow
+the label, the hidden value and the controls' `hx-get` to be updated in place and
+MUST NOT depend on re-rendering the bar. The re-synchronization behavior itself
+(when it runs and which state it reads) is owned by `listados-htmx` LHT-14 and is
+not duplicated here.
+
+#### Scenario: The bar carries its stable hooks
+
+- GIVEN each of the four listing templates
+- WHEN the `f_custom_search` block is parsed
+- THEN it contains `id="tpvmod-cliente-activo"` and an `input[name="codcliente"]`
+- AND the non-text controls expose their `name` (`codserie`, `codagente`, `desde`, `hasta`)
+
+#### Scenario: The bar is updateable without being re-rendered
+
+- GIVEN a listing whose bar was rendered with a client and then the client was
+  cleared by a region swap
+- WHEN the bar markup is inspected
+- THEN the label and the hidden `codcliente` remain addressable independently of
+  the region
+- AND no part of the bar depends on the region swap to be updated

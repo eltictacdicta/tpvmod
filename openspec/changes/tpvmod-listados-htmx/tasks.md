@@ -21,7 +21,9 @@
 > found the filter bar hidden on every non-`buscar` state; **U21 (LHT-13)** was
 > added to remove the inherited guard. **U21 is applied** (see
 > `apply-progress.md` → "PR3 follow-up — U21"); the filter bar now renders in
-> every listing state.
+> every listing state. A later smoke found the bar **stale after a swap** (the
+> cleared client filter was re-applied); **U22 (LHT-14)** adds the post-swap
+> re-synchronization and is **not yet applied**.
 
 ## Execution rules (mandatory)
 
@@ -532,6 +534,30 @@ presentational. PR2's smoke runs before the PR3 layout churn.
 **Verificación:** `form[name="f_custom_search"]` is present for `todo`/intermediate/`buscar` in the four listings; the form stays above the region and outside it; the autofocus and tab `active` guards still count 2 per template.
 **Comando:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
 
+### U22 — Post-swap filter-bar re-synchronization (LHT-14, views delta)
+
+> Added after the authenticated browser smoke found the bar stale after a region
+> swap: clearing the client filter left the active-client label, the hidden
+> `codcliente` and the other controls' `hx-get` pointing at the cleared customer,
+> so the next filter change re-applied it. View-layer only: no controller, helper,
+> schema or dependency change.
+
+| Field | Value |
+|---|---|
+| **Objective** | After every region swap, re-synchronize the `#f_custom_search` bar from the current listing URL (`location.search`): the `id="tpvmod-cliente-activo"` label and the hidden `codcliente` follow the URL's `codcliente` (clearing empties both; a `[+]` filter fills both); the `hx-get` of the bar's non-text controls (serie, agente, dates, client-clear) is rebuilt against the current URL so a cleared filter is not re-applied. Text inputs (`query`, `desde`, `hasta`) are NOT replaced and keep value/focus (LHT-03). Extend the existing single `htmx:after:swap` listener; do not add a second. |
+| **Files** | `view/tpvmod_{presupuestos,facturas,albaranes,pedidos}.html.twig`; extend `tests/TpvmodTwigTemplatesTest.php` |
+| **Dependencies** | U11 (single `htmx:after:swap` listener + `window.__tpvmodListado*` markers), U12/U17/U21 (bar outside the region, always visible); applied after U21 |
+| **Covers** | LHT-14; `views` delta "Filter bar exposes stable re-synchronization hooks" |
+| **Est.** | 5 files · ~30–60 prod (re-sync script) + ~40 test |
+
+**TDD — RED first**
+- [ ] RED — `testFilterBarResyncsAfterSwap` (new, DB-free): for each of the four templates assert the post-swap re-synchronization contract — one `'htmx:after:swap'` handler reads the current URL (`location.search`), targets `id="tpvmod-cliente-activo"` and `input[name="codcliente"]`, and rebuilds the `hx-get` of `select[name="codserie"]`, `select[name="codagente"]`, `input[name="desde"]`, `input[name="hasta"]` and the client-clear control; assert the text inputs are not rewritten (no `outerHTML`/`replaceWith` over the bar); assert the sole `'htmx:after:swap'` count stays 1 (`testListingsImportHtmxAndAlpineOnce`). Run → **fail** (no re-sync exists; the bar is never touched after a swap).
+- [ ] GREEN — extend the existing listener with the re-sync (the exact hook/selector seam is pinned in design); the label and hidden follow the URL's `codcliente`; each non-text control's `hx-get` is rebuilt from `location.search`.
+- [ ] REFACTOR — one shared re-sync implementation across the four listings (same seam as the Alpine re-init, TCP-07); no per-module duplicate; text inputs never replaced.
+
+**Verification:** clearing the client then changing a filter issues a request without `codcliente`; the label and hidden field empty after clearing (and fill after a `[+]` swap); the query/date inputs keep focus across a swap; name/phone search and every filter unchanged; the full suite stays green.
+**Command:** `ddev exec php vendor/bin/phpunit -c plugins/tpvmod/phpunit.xml --filter TpvmodTwigTemplatesTest`
+
 ---
 
 ## Design verification map → task placement
@@ -554,6 +580,7 @@ extensions (DB-free); `S` = manual smoke in `verify-report.md`.
 | LHT-11 | `testBuildListUrlEncodesAndDropsEmpty`, `testBuildListUrlKeepsZero`, `testPagerLinksBoundsAndPrunes`, `testPagerLinksEmptyWhenSinglePage`, `testOrderTokenFor` (U2/U3) | `testListingControllersGateCronAndBuildUrls` (U6 URL half, U8 cron half) + `testNoLocalHtmxDetectionHelper` (U8) | U10, U15, U20 |
 | LHT-12 | H suite green (U1–U5) | suite green (U10, U15, U20) | `phpstan` (U10, U15, U20) |
 | LHT-13 | — | `testFilterBarRendersInEveryListingState` (U21) | U21: bar visible on the default and intermediate tabs; submit jumps to `buscar` |
+| LHT-14 | — | `testFilterBarResyncsAfterSwap` (U22) | U22: clear then change a filter does not re-apply `codcliente`; label/hidden empty after clearing; text inputs keep focus |
 | `views` delta | — | U14 (fragment pager), U17 (form precedes region), U18 (picker absent, narrowed assertion), U19 (native dates), existing `testEveryPostFormCarriesCsrfField` stays green (U13) | U20 |
 | `tpv-cliente-modales` delta | — | U18 (modal stays on `tpvmod2`/`tpvmodedita`; absent from listings; `&codcliente=` read-only + clear) | U20 |
 | TCP-01 | — | U13 (no `$.ajax`/`mas_resultados(`) | U15 |
@@ -576,5 +603,5 @@ U1 ─┬─▶ U2 ─▶ U3 ─┐
                                         └─▶ U11 ─┬─▶ U12 ─┐
                                                  └─▶ U13 ─┼─▶ U14 ─▶ U15 (PR2 gate)
                                                           │        └─▶ U16 ─▶ ...
-                                                           └─▶ U17 ─▶ U18 ─▶ U19 ─▶ U20 (PR3 gate) ─▶ U21 (post-verify amendment)
+                                                           └─▶ U17 ─▶ U18 ─▶ U19 ─▶ U20 (PR3 gate) ─▶ U21 (post-verify amendment) ─▶ U22 (post-verify amendment)
 ```
