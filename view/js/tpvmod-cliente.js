@@ -147,6 +147,7 @@ function tpvmodAbrirFormularioCliente(codcliente)
       },
       success: function(html) {
          $('#tpv_cliente_form_body').html(html);
+         tpvmodBindClienteFormulario();
       },
       error: function() {
          $('#tpv_cliente_form_body').html('<div class="alert alert-danger">Error al cargar el formulario.</div>');
@@ -155,35 +156,84 @@ function tpvmodAbrirFormularioCliente(codcliente)
 }
 
 /**
+ * The shared discount partial drives its d1-d4 autofill with Alpine
+ * (`@change` + `x-model`), but the TPV loads no Alpine on its screens: those
+ * directives stay inert here. The partial does not allow injecting attributes
+ * on the <select>, so the consumer delegates the change instead.
+ *
  * Fill the D1-D4 inputs from the selected discount-group option (data-d1..d4)
  * so choosing a group shows its defaults without a reload. The server is still
  * authoritative: it re-applies the group defaults on save when the group moved.
  */
-function tpvmodClienteGrupoDescuentoChange(select)
+function tpvmodClienteApplyGrupoDescuento(select)
 {
    if (!select || !select.selectedOptions || !select.selectedOptions.length) {
       return;
    }
 
    var opt = select.selectedOptions[0];
-   if (!opt) {
-      return;
-   }
-
-   var form = select.form || document.querySelector('form[name=f_cliente_tpv]');
+   var form = select.form || document.getElementById('f_cliente_tpv');
    if (!form) {
       return;
    }
 
-   ['d1', 'd2', 'd3', 'd4'].forEach(function(field) {
-      if (opt.dataset[field] === undefined) {
-         return;
-      }
-      var input = form.querySelector('input[name="' + field + '"]');
-      if (input) {
-         input.value = opt.dataset[field];
-      }
-   });
+   if (opt && opt.value) {
+      ['d1', 'd2', 'd3', 'd4'].forEach(function(field) {
+         if (opt.dataset[field] === undefined) {
+            return;
+         }
+         var input = form.querySelector('input[name="' + field + '"]');
+         if (input) {
+            input.value = opt.dataset[field];
+         }
+      });
+   }
+
+   tpvmodClienteSyncGrupoDescuentoRequired(form);
+}
+
+/**
+ * Show the mandatory discount-group help only while the selector is empty.
+ *
+ * The partial renders it with `x-show` + `x-cloak`, which do nothing without
+ * Alpine: the `x-cloak` attribute is dropped here (the modal CSS keeps it hidden
+ * until this runs) and the visibility is then driven explicitly.
+ */
+function tpvmodClienteSyncGrupoDescuentoRequired(form)
+{
+   var select = form.querySelector('select[name="codgrupo_descuento"]');
+   var help = form.querySelector('#tpv_cliente_grupo_descuento_required');
+   if (!select || !help) {
+      return;
+   }
+
+   help.removeAttribute('x-cloak');
+   help.style.display = select.value ? 'none' : 'block';
+}
+
+/**
+ * Bind the client form's own interactions after the modal body is injected.
+ *
+ * The form is a fresh element on every open, and the binding is idempotent
+ * anyway: the namespaced handler is always removed before it is bound again, so
+ * re-opening the modal never stacks listeners.
+ */
+function tpvmodBindClienteFormulario()
+{
+   var form = document.getElementById('f_cliente_tpv');
+   if (!form) {
+      return;
+   }
+
+   $(form)
+      .off('change.tpvmodCliente', 'select[name="codgrupo_descuento"]')
+      .on('change.tpvmodCliente', 'select[name="codgrupo_descuento"]', function() {
+         tpvmodClienteApplyGrupoDescuento(this);
+      });
+
+   // The help must reflect the group already selected when the modal opens,
+   // not only what the operator changes afterwards.
+   tpvmodClienteSyncGrupoDescuentoRequired(form);
 }
 
 /**

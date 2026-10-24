@@ -11,6 +11,9 @@ declare(strict_types=1);
 namespace Tests\Tpvmod;
 
 use PHPUnit\Framework\TestCase;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
+use Twig\TwigFunction;
 
 class TpvmodTwigTemplatesTest extends TestCase
 {
@@ -176,40 +179,257 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
     }
 
-    public function testDiscountGroupSelectExposesDefaultsAndHandler(): void
+    /**
+     * The TPV no longer owns the client field markup: both shared partials are
+     * included with the consumer's own id prefix and its catalogs, and
+     * `ignore missing` keeps the page alive when clientes_core is absent.
+     */
+    public function testClientFormIncludesSharedClientPartials(): void
     {
-        $content = file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
-        $this->assertIsString($content);
-        $this->assertStringContainsString('onchange="tpvmodClienteGrupoDescuentoChange(this)"', $content);
-        $this->assertStringContainsString('data-d1=', $content);
-        $this->assertStringContainsString('data-d4=', $content);
+        $content = (string) file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
 
-        $js = file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
-        $this->assertIsString($js);
-        $this->assertStringContainsString('function tpvmodClienteGrupoDescuentoChange(select)', $js);
+        $fields = $this->includeTag($content, 'Fields');
+        $this->assertNotSame('', $fields, 'the client identity fields must come from the shared partial');
+        $this->assertStringContainsString('ignore missing', $fields);
+        $this->assertStringContainsString("id_prefix: 'tpv_cliente'", $fields);
+        $this->assertStringContainsString("input_class: 'form-control input-sm'", $fields);
+        $this->assertStringContainsString("mode: es_nuevo ? 'create' : 'edit'", $fields);
+        $this->assertStringContainsString('cliente: cliente', $fields);
+        $this->assertStringContainsString('grupos: fsc.tpv_grupos', $fields);
+        $this->assertStringContainsString('regimenes_iva: fsc.tpv_regimenes_iva', $fields);
+
+        $discounts = $this->includeTag($content, 'Discounts');
+        $this->assertNotSame('', $discounts, 'the discount block must come from the shared partial');
+        $this->assertStringContainsString('ignore missing', $discounts);
+        $this->assertStringContainsString("id_prefix: 'tpv_cliente'", $discounts);
+        $this->assertStringContainsString("input_class: 'form-control input-sm'", $discounts);
+        $this->assertStringContainsString('cliente: cliente', $discounts);
+        $this->assertStringContainsString('grupos_descuentos: fsc.tpv_grupos_descuentos', $discounts);
+
+        // The partials are captured, not echoed: the view needs the rendered
+        // result to detect the degraded state (design §6).
+        $this->assertStringContainsString('{% set fields_html %}', $content);
+        $this->assertStringContainsString('{% set discounts_html %}', $content);
     }
 
-    public function testGroupSelectsAreMandatoryWithoutSinGrupoOption(): void
+    /**
+     * The TPV keeps no hand-written copy of the client fields nor of the
+     * discount block: a leftover duplicate would drift from the authority.
+     */
+    public function testClientFormKeepsNoOwnFieldMarkup(): void
     {
-        $content = file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
-        $this->assertIsString($content);
+        $content = (string) file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
 
-        foreach (['codgrupo', 'codgrupo_descuento'] as $name) {
-            $this->assertMatchesRegularExpression(
-                '/<select name="' . $name . '"[^>]*required/',
-                $content,
-                $name . ' must be a mandatory select'
-            );
+        $ownedByPartial = [
+            'name="nombre"',
+            'name="razonsocial"',
+            'name="cifnif"',
+            'name="tipoidfiscal"',
+            'name="personafisica"',
+            'name="telefono1"',
+            'name="telefono2"',
+            'name="email"',
+            'name="web"',
+            'name="codgrupo"',
+            'name="regimeniva"',
+            'name="recargo"',
+            'name="diaspago"',
+            'name="debaja"',
+            'name="observaciones"',
+            'name="codgrupo_descuento"',
+            'name="d1"',
+            'name="d2"',
+            'name="d3"',
+            'name="d4"',
+            'data-d1=',
+            'onchange=',
+        ];
+
+        foreach ($ownedByPartial as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, $content, 'the shared partial owns ' . $forbidden);
         }
 
-        // Neither group may offer a selectable "Sin grupo" option: the
-        // mandatory group gate lives in cliente::test() and an empty option
-        // would only produce a confusing save error.
+        // The discount panel markup (heading, percent icon) is the partial's.
+        $this->assertStringNotContainsString('panel panel-info', $content);
+        $this->assertStringNotContainsString('fa-percent', $content);
+
+        // The consumer keeps its own shell.
+        $this->assertStringContainsString('id="f_cliente_tpv"', $content);
+        $this->assertStringContainsString('{{ csrf_field() }}', $content);
+        $this->assertStringContainsString('name="save_cliente_tpv"', $content);
+        $this->assertStringContainsString('nav nav-tabs', $content);
+        $this->assertStringContainsString('id="f_direccion_tpv"', $content);
+        $this->assertStringContainsString('tpvmodGuardarCliente()', $content);
+    }
+
+    /**
+     * Without Alpine the partial's `x-model`/`@change` are inert, so the TPV
+     * binds its own delegated listener instead of an inline handler (the
+     * partial does not allow injecting attributes on the <select>).
+     */
+    public function testDiscountGroupChangeUsesADelegatedListener(): void
+    {
+        $js = (string) file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
+
+        // Delegated on the modal form, addressed by name (no id dependency).
+        $this->assertStringContainsString("select[name=\"codgrupo_descuento\"]", $js);
+        $this->assertStringContainsString("change.tpvmodCliente", $js);
+
+        // Re-opening the modal must not stack handlers: the namespaced handler
+        // is always removed before it is bound again.
+        $this->assertStringContainsString(".off('change.tpvmodCliente'", $js);
+        $this->assertStringContainsString(".on('change.tpvmodCliente'", $js);
+
+        // d1-d4 come from the selected option's data attributes, and the
+        // mandatory-group help follows the current value.
+        $this->assertStringContainsString('opt.dataset[field]', $js);
+        $this->assertStringContainsString("['d1', 'd2', 'd3', 'd4']", $js);
+        $this->assertStringContainsString('tpv_cliente_grupo_descuento_required', $js);
+
+        // The legacy inline handler is gone from both sides.
+        $this->assertStringNotContainsString('tpvmodClienteGrupoDescuentoChange', $js);
+    }
+
+    /**
+     * The required help must reflect the current value as soon as the modal
+     * opens, not only after a change: a client that already carries a discount
+     * group must not see the warning.
+     */
+    public function testClientFormStateIsInitializedWhenTheModalOpens(): void
+    {
+        $js = (string) file_get_contents($this->pluginDir . '/view/js/tpvmod-cliente.js');
+
+        $open = $this->jsFunctionBody($js, 'tpvmodAbrirFormularioCliente');
+        $this->assertNotSame('', $open, 'tpvmodAbrirFormularioCliente not found');
+        $this->assertStringContainsString(
+            'tpvmodBindClienteFormulario()',
+            $open,
+            'the modal must bind and initialize the client form after injecting it'
+        );
+
+        $bind = $this->jsFunctionBody($js, 'tpvmodBindClienteFormulario');
+        $this->assertNotSame('', $bind, 'tpvmodBindClienteFormulario not found');
+        $this->assertStringContainsString('tpvmodClienteSyncGrupoDescuentoRequired(', $bind);
+
+        $sync = $this->jsFunctionBody($js, 'tpvmodClienteSyncGrupoDescuentoRequired');
+        $this->assertNotSame('', $sync, 'tpvmodClienteSyncGrupoDescuentoRequired not found');
+        $this->assertStringContainsString("removeAttribute('x-cloak')", $sync);
+        $this->assertStringContainsString('style.display', $sync);
+    }
+
+    /**
+     * Rendered contract of the two group selects: the client group is optional
+     * and offers its empty "no group" option; the discount group stays
+     * mandatory with no selectable empty option.
+     */
+    public function testClientGroupIsOptionalAndDiscountGroupStaysMandatory(): void
+    {
+        $html = $this->renderClienteForm(
+            false,
+            $this->clienteStub(),
+            true,
+            [(object) ['codgrupo' => 'G1', 'nombre' => 'Grupo 1']],
+            [(object) [
+                'codgrupo_descuento' => 'GD1',
+                'nombre' => 'Grupo descuento 1',
+                'd1' => 5.0,
+                'd2' => 0.0,
+                'd3' => 0.0,
+                'd4' => 0.0,
+            ]]
+        );
+
+        $codgrupo = $this->selectTagFor($html, 'codgrupo');
+        $this->assertNotSame('', $codgrupo, 'the client group select must be rendered');
+        $this->assertStringContainsString('id="tpv_cliente_codgrupo"', $codgrupo);
+        $this->assertStringNotContainsString('required', $codgrupo, 'the client group must stay optional');
+
+        $codgrupoBlock = $this->selectBlockFor($html, 'codgrupo');
+        $this->assertMatchesRegularExpression(
+            '/<option value=""(?![^>]*disabled)/',
+            $codgrupoBlock,
+            'the client group must offer a selectable empty option'
+        );
+
+        $descuento = $this->selectTagFor($html, 'codgrupo_descuento');
+        $this->assertNotSame('', $descuento, 'the discount group select must be rendered');
+        $this->assertStringContainsString('id="tpv_cliente_grupo_descuento"', $descuento);
+        $this->assertStringContainsString('required', $descuento, 'the discount group must stay mandatory');
+
+        $descuentoBlock = $this->selectBlockFor($html, 'codgrupo_descuento');
+        $this->assertMatchesRegularExpression(
+            '/<option value=""[^>]*disabled/',
+            $descuentoBlock,
+            'the discount group must not offer a selectable empty option'
+        );
+        $this->assertStringContainsString('id="tpv_cliente_grupo_descuento_required"', $html);
+        $this->assertStringContainsString('id="tpv_cliente_btn_reset_descuentos"', $html);
+    }
+
+    /**
+     * One `name="codcliente"` only: the consumer drops its hidden and the
+     * partial owns the field. The address sub-form keeps its own hidden, which
+     * is scoped to the Direcciones pane and feeds save_direccion_tpv.
+     */
+    public function testRenderedClientFormHasOneCodclienteInTheIdentityArea(): void
+    {
+        $html = $this->renderClienteForm(false, $this->clienteStub());
+
+        $identity = $this->beforeDireccionesPane($html);
+        $this->assertNotSame('', $identity, 'the Direcciones pane anchor must exist');
+        $this->assertSame(
+            1,
+            substr_count($identity, 'name="codcliente"'),
+            'the identity area must carry exactly one codcliente field'
+        );
         $this->assertSame(
             0,
-            substr_count($content, 'Sin grupo'),
-            'no group selector must offer a selectable "Sin grupo" option'
+            substr_count($identity, 'type="hidden" name="codcliente"'),
+            'the consumer must not keep its own hidden codcliente'
         );
+        $this->assertStringContainsString('id="tpv_cliente_codcliente"', $identity);
+
+        // Create mode: the address pane has no sub-form, so the only
+        // codcliente is the partial's.
+        $create = $this->renderClienteForm(true, null);
+        $this->assertSame(1, substr_count($create, 'name="codcliente"'));
+        $this->assertStringContainsString('placeholder="Auto"', $this->inputTagFor($create, 'codcliente'));
+    }
+
+    /**
+     * clientes_core absent: `ignore missing` leaves the captures empty, so the
+     * view renders an explicit alert instead of an empty form.
+     */
+    public function testDegradedStateRendersAnAlertInsteadOfTheForm(): void
+    {
+        $html = $this->renderClienteForm(false, $this->clienteStub(), false);
+
+        $this->assertStringContainsString('alert alert-warning', $html);
+        $this->assertStringContainsString('tpv-cliente-form-sin-clientes-core', $html);
+        $this->assertStringNotContainsString('id="f_cliente_tpv"', $html);
+        $this->assertStringNotContainsString('tpvmodGuardarCliente()', $html);
+    }
+
+    /**
+     * The two cosmetic overrides are scoped to the modal: the plugin ships no
+     * global rule for `[x-cloak]` and no orphan reset button.
+     */
+    public function testModalScopedStylesHideCloakAndResetButton(): void
+    {
+        $content = (string) file_get_contents($this->viewDir . '/ajax/tpv_cliente_form.html.twig');
+
+        $this->assertStringContainsString('#f_cliente_tpv [x-cloak] { display: none; }', $content);
+        $this->assertStringContainsString(
+            '#f_cliente_tpv #tpv_cliente_btn_reset_descuentos { display: none; }',
+            $content
+        );
+
+        // Scoped, never global: every x-cloak selector carries the prefix.
+        preg_match_all('/[^\n{}]*\[x-cloak\][^\n{}]*\{/', $content, $selectors);
+        $this->assertNotEmpty($selectors[0]);
+        foreach ($selectors[0] as $selector) {
+            $this->assertStringContainsString('#f_cliente_tpv', $selector, 'the x-cloak rule must be modal-scoped');
+        }
     }
 
     public function testGuardarClienteValidatesOnlyItsOwnControls(): void
@@ -232,6 +452,12 @@ class TpvmodTwigTemplatesTest extends TestCase
         // must never gate the client save.
         $this->assertStringContainsString("getElementById('f_direccion_tpv')", $js);
         $this->assertStringContainsString('direccionForm.contains(element)', $js);
+
+        // Only the discount group is mandatory now: the client group is
+        // optional in the TPV (design D1) and is not re-imposed here.
+        $validacion = $this->jsFunctionBody($js, 'tpvmodClienteFormularioValido');
+        $this->assertNotSame('', $validacion, 'tpvmodClienteFormularioValido not found');
+        $this->assertStringNotContainsString('codgrupo', $validacion, 'the client group must not be required');
     }
 
     public function testGuardarDireccionValidatesItsRequiredAddress(): void
@@ -1105,5 +1331,185 @@ class TpvmodTwigTemplatesTest extends TestCase
         }
 
         return $tail;
+    }
+
+    /**
+     * Extract a top-level JS function body from its declaration up to the next
+     * top-level `function` declaration. Returns '' when the function is absent.
+     */
+    private function jsFunctionBody(string $js, string $name): string
+    {
+        $start = strpos($js, 'function ' . $name . '(');
+        if ($start === false) {
+            return '';
+        }
+
+        $tail = substr($js, $start);
+        if (preg_match('/\nfunction\s+/', $tail, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return substr($tail, 0, (int) $matches[0][1]);
+        }
+
+        return $tail;
+    }
+
+    /**
+     * The whole `{% include '@clientes_core/Cliente/{partial}.html.twig' … %}`
+     * tag, multi-line context included. Returns '' when the include is absent.
+     */
+    private function includeTag(string $content, string $partial): string
+    {
+        $pattern = '/\{%-?\s*include\s+\'@clientes_core\/Cliente\/' . preg_quote($partial, '/') . '\.html\.twig\'.*?%\}/s';
+
+        return preg_match($pattern, $content, $matches) === 1 ? $matches[0] : '';
+    }
+
+    /**
+     * Render the TPV client modal with a minimal Twig environment: the plugin's
+     * own view root plus, unless the degraded state is under test, the
+     * `clientes_core` namespace. Every framework function the templates call is
+     * stubbed, so the render never needs the container, the translator or a
+     * request.
+     *
+     * @param list<object> $grupos
+     * @param list<object> $gruposDescuentos
+     */
+    private function renderClienteForm(
+        bool $esNuevo,
+        ?object $cliente,
+        bool $withSharedPartials = true,
+        array $grupos = [],
+        array $gruposDescuentos = []
+    ): string {
+        $loader = new FilesystemLoader($this->viewDir);
+        if ($withSharedPartials) {
+            $loader->addPath(FS_FOLDER . '/plugins/clientes_core/View', 'clientes_core');
+        }
+
+        $twig = new Environment($loader, ['strict_variables' => false]);
+        $twig->addFunction(new TwigFunction('trans', static fn (string $id): string => $id));
+        $twig->addFunction(new TwigFunction(
+            'csrf_field',
+            static fn (): string => '<input type="hidden" name="_csrf_token" value="test-token"/>',
+            ['is_safe' => ['html']]
+        ));
+        $twig->addFunction(new TwigFunction(
+            'csp_nonce_attr',
+            static fn (): string => 'nonce="test"',
+            ['is_safe' => ['html']]
+        ));
+        $twig->addFunction(new TwigFunction('render_hook', static fn (): string => '', ['is_safe' => ['html']]));
+
+        return $twig->render('ajax/tpv_cliente_form.html.twig', [
+            'fsc' => $this->fscStub($esNuevo, $cliente, $grupos, $gruposDescuentos),
+        ]);
+    }
+
+    /**
+     * @param list<object> $grupos
+     * @param list<object> $gruposDescuentos
+     */
+    private function fscStub(bool $esNuevo, ?object $cliente, array $grupos, array $gruposDescuentos): object
+    {
+        return new class ($esNuevo, $cliente, $grupos, $gruposDescuentos) {
+            public object $tpv_cliente;
+
+            public bool $tpv_cliente_nuevo;
+
+            /** @var list<object> */
+            public array $tpv_grupos;
+
+            /** @var list<object> */
+            public array $tpv_grupos_descuentos;
+
+            /** @var list<string> */
+            public array $tpv_regimenes_iva = ['General', 'Exento'];
+
+            /** @var list<object> */
+            public array $tpv_direcciones = [];
+
+            /**
+             * @param list<object> $grupos
+             * @param list<object> $gruposDescuentos
+             */
+            public function __construct(bool $esNuevo, ?object $cliente, array $grupos, array $gruposDescuentos)
+            {
+                $this->tpv_cliente_nuevo = $esNuevo;
+                $this->tpv_cliente = $cliente ?? new \stdClass();
+                $this->tpv_grupos = $grupos;
+                $this->tpv_grupos_descuentos = $gruposDescuentos;
+            }
+
+            /** @return list<string> */
+            public function get_errors(): array
+            {
+                return [];
+            }
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    private function clienteStub(array $overrides = []): object
+    {
+        return (object) array_merge([
+            'codcliente' => 'CLI001',
+            'nombre' => 'Cliente de prueba',
+            'razonsocial' => '',
+            'cifnif' => '',
+            'tipoidfiscal' => '',
+            'personafisica' => true,
+            'telefono1' => '',
+            'telefono2' => '',
+            'email' => '',
+            'web' => '',
+            'fax' => '',
+            'codgrupo' => '',
+            'regimeniva' => 'General',
+            'recargo' => false,
+            'diaspago' => '',
+            'fechaalta' => '',
+            'debaja' => false,
+            'observaciones' => '',
+            'codgrupo_descuento' => 'GD1',
+            'd1' => 5.0,
+            'd2' => 0.0,
+            'd3' => 0.0,
+            'd4' => 0.0,
+            'descuentos_modified' => false,
+        ], $overrides);
+    }
+
+    /**
+     * The first `<select … name="{name}" …>` opening tag, multi-line aware.
+     */
+    private function selectTagFor(string $html, string $name): string
+    {
+        $pattern = '/<select\b[^>]*\bname="' . preg_quote($name, '/') . '"[^>]*>/';
+
+        return preg_match($pattern, $html, $matches) === 1 ? $matches[0] : '';
+    }
+
+    /**
+     * The whole `<select … name="{name}" …>…</select>` block, so option-level
+     * assertions stay scoped to one selector.
+     */
+    private function selectBlockFor(string $html, string $name): string
+    {
+        $pattern = '/<select\b[^>]*\bname="' . preg_quote($name, '/') . '"[^>]*>.*?<\/select>/s';
+
+        return preg_match($pattern, $html, $matches) === 1 ? $matches[0] : '';
+    }
+
+    /**
+     * Everything before the Direcciones pane, i.e. the identity and discount
+     * area, so the address sub-form's own `codcliente` hidden is out of scope.
+     */
+    private function beforeDireccionesPane(string $html): string
+    {
+        $anchor = '<div class="tab-pane" id="tpv_cli_direcciones">';
+        $position = strpos($html, $anchor);
+
+        return $position === false ? '' : substr($html, 0, $position);
     }
 }

@@ -1,0 +1,4 @@
+# tpvmod translations - English
+
+# Client form (TPV modal)
+tpv-cliente-form-sin-clientes-core: "The clientes_core plugin is not available: the client form cannot be loaded. Enable it or contact your administrator."

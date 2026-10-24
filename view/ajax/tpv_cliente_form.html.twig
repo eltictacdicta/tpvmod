@@ -8,12 +8,51 @@
 </div>
 {% endif %}
 
+{#
+   The identity fields and the discount block belong to the shared cliente form
+   authority (clientes_core). Both includes are captured so this view can detect
+   the degraded state below: `ignore missing` leaves a capture empty when the
+   `@clientes_core` namespace is not registered, instead of breaking the page.
+#}
+{% set fields_html %}
+{% include '@clientes_core/Cliente/Fields.html.twig' ignore missing with {
+   mode: es_nuevo ? 'create' : 'edit',
+   cliente: cliente,
+   grupos: fsc.tpv_grupos,
+   regimenes_iva: fsc.tpv_regimenes_iva,
+   id_prefix: 'tpv_cliente',
+   input_class: 'form-control input-sm'
+} %}
+{% endset %}
+
+{% set discounts_html %}
+{% include '@clientes_core/Cliente/Discounts.html.twig' ignore missing with {
+   cliente: cliente,
+   grupos_descuentos: fsc.tpv_grupos_descuentos,
+   id_prefix: 'tpv_cliente',
+   input_class: 'form-control input-sm'
+} %}
+{% endset %}
+
+{#
+   Both rules are scoped to this modal, never global. `x-cloak` hides the
+   Alpine-driven help until tpvmod-cliente.js decides (the TPV loads no Alpine);
+   the reset button has no endpoint here, so it must not be visible at all.
+#}
+<style>
+   #f_cliente_tpv [x-cloak] { display: none; }
+   #f_cliente_tpv #tpv_cliente_btn_reset_descuentos { display: none; }
+</style>
+
+{% if fields_html|trim is empty %}
+<div class="alert alert-warning">
+   <i class="fa fa-exclamation-triangle"></i>
+   {{ trans('tpv-cliente-form-sin-clientes-core') }}
+</div>
+{% else %}
 <form id="f_cliente_tpv" name="f_cliente_tpv" class="form" onsubmit="return false;">
    {{ csrf_field() }}
    <input type="hidden" name="save_cliente_tpv" value="1"/>
-   {% if not es_nuevo %}
-   <input type="hidden" name="codcliente" value="{{ cliente.codcliente }}"/>
-   {% endif %}
 
    <ul class="nav nav-tabs" role="tablist">
       <li class="active"><a href="#tpv_cli_datos" role="tab" data-toggle="tab">Datos</a></li>
@@ -23,156 +62,12 @@
 
    <div class="tab-content" style="padding-top: 15px;">
       <div class="tab-pane active" id="tpv_cli_datos">
-         <div class="row">
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>Código</label>
-                  <input type="text" class="form-control input-sm" value="{{ es_nuevo ? '(auto)' : cliente.codcliente }}" readonly/>
-               </div>
-            </div>
-            <div class="col-sm-5">
-               <div class="form-group">
-                  <label>Nombre *</label>
-                  <input type="text" name="nombre" class="form-control input-sm" value="{{ cliente.nombre }}" maxlength="100" required/>
-               </div>
-            </div>
-            <div class="col-sm-5">
-               <div class="form-group">
-                  <label>Razón social</label>
-                  <input type="text" name="razonsocial" class="form-control input-sm" value="{{ cliente.razonsocial }}" maxlength="100"/>
-               </div>
-            </div>
-         </div>
-         <div class="row">
-            <div class="col-sm-3">
-               <div class="form-group">
-                  <label>CIF/NIF</label>
-                  <input type="text" name="cifnif" class="form-control input-sm" value="{{ cliente.cifnif }}" maxlength="30"/>
-               </div>
-            </div>
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>Tipo ID fiscal</label>
-                  <input type="text" name="tipoidfiscal" class="form-control input-sm" value="{{ cliente.tipoidfiscal }}" maxlength="25"/>
-               </div>
-            </div>
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>Persona</label>
-                  <select name="personafisica" class="form-control input-sm">
-                     <option value="1"{% if cliente.personafisica %} selected{% endif %}>Física</option>
-                     <option value="0"{% if not cliente.personafisica %} selected{% endif %}>Jurídica</option>
-                  </select>
-               </div>
-            </div>
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>Teléfono</label>
-                  <input type="text" name="telefono1" class="form-control input-sm" value="{{ cliente.telefono1 }}" maxlength="30"/>
-               </div>
-            </div>
-            <div class="col-sm-3">
-               <div class="form-group">
-                  <label>Teléfono 2</label>
-                  <input type="text" name="telefono2" class="form-control input-sm" value="{{ cliente.telefono2 }}" maxlength="30"/>
-               </div>
-            </div>
-         </div>
-         <div class="row">
-            <div class="col-sm-3">
-               <div class="form-group">
-                  <label>Email</label>
-                  <input type="email" name="email" class="form-control input-sm" value="{{ cliente.email }}" maxlength="100"/>
-               </div>
-            </div>
-            <div class="col-sm-3">
-               <div class="form-group">
-                  <label>Web</label>
-                  <input type="url" name="web" class="form-control input-sm" value="{{ cliente.web }}" maxlength="250"/>
-               </div>
-            </div>
-            <div class="col-sm-3">
-               <div class="form-group">
-                  <label>Grupo *</label>
-                  <select name="codgrupo" class="form-control input-sm" required>
-                     <option value="" disabled{% if not cliente.codgrupo %} selected{% endif %}>— Seleccione grupo —</option>
-                     {% for g in fsc.tpv_grupos %}
-                     <option value="{{ g.codgrupo }}"{% if cliente.codgrupo == g.codgrupo %} selected{% endif %}>{{ g.nombre }}</option>
-                     {% endfor %}
-                  </select>
-               </div>
-            </div>
-            <div class="col-sm-3">
-               <div class="form-group">
-                  <label>Régimen IVA</label>
-                  <select name="regimeniva" class="form-control input-sm">
-                     {% for regimen in fsc.tpv_regimenes_iva %}
-                     <option value="{{ regimen }}"{% if cliente.regimeniva == regimen %} selected{% endif %}>{{ regimen }}</option>
-                     {% endfor %}
-                  </select>
-               </div>
-            </div>
-         </div>
-         <div class="row">
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>Recargo eq.</label>
-                  <select name="recargo" class="form-control input-sm">
-                     <option value="0"{% if not cliente.recargo %} selected{% endif %}>No</option>
-                     <option value="1"{% if cliente.recargo %} selected{% endif %}>Sí</option>
-                  </select>
-               </div>
-            </div>
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>Días pago</label>
-                  <input type="text" name="diaspago" class="form-control input-sm" value="{{ cliente.diaspago }}" placeholder="1,15,31"/>
-               </div>
-            </div>
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>De baja</label>
-                  <select name="debaja" class="form-control input-sm">
-                     <option value="0"{% if not cliente.debaja %} selected{% endif %}>No</option>
-                     <option value="1"{% if cliente.debaja %} selected{% endif %}>Sí</option>
-                  </select>
-               </div>
-            </div>
-            <div class="col-sm-6">
-               <div class="form-group">
-                  <label>Observaciones</label>
-                  <textarea name="observaciones" class="form-control input-sm" rows="2">{{ cliente.observaciones }}</textarea>
-               </div>
-            </div>
-         </div>
+         {# Trusted plugin template output: the shared partial escapes its values. #}
+         {{ fields_html|raw }}
       </div>
 
       <div class="tab-pane" id="tpv_cli_descuentos">
-         <div class="row">
-            <div class="col-sm-4">
-               <div class="form-group">
-                  <label>Grupo descuentos *</label>
-                  <select name="codgrupo_descuento" class="form-control input-sm" required
-                     onchange="tpvmodClienteGrupoDescuentoChange(this)">
-                     <option value="" disabled data-d1="0" data-d2="0" data-d3="0" data-d4="0"{% if not cliente.codgrupo_descuento %} selected{% endif %}>— Seleccione grupo —</option>
-                     {% for gd in fsc.tpv_grupos_descuentos %}
-                     <option value="{{ gd.codgrupo_descuento }}"
-                        data-d1="{{ gd.d1 ?? 0 }}" data-d2="{{ gd.d2 ?? 0 }}"
-                        data-d3="{{ gd.d3 ?? 0 }}" data-d4="{{ gd.d4 ?? 0 }}"
-                        {% if cliente.codgrupo_descuento == gd.codgrupo_descuento %} selected{% endif %}>{{ gd.nombre }}</option>
-                     {% endfor %}
-                  </select>
-               </div>
-            </div>
-            {% for i in 1..4 %}
-            <div class="col-sm-2">
-               <div class="form-group">
-                  <label>D{{ i }} (%)</label>
-                  <input type="number" name="d{{ i }}" class="form-control input-sm" value="{{ attribute(cliente, 'd' ~ i) ?? 0 }}" step="0.01" min="0" max="100"/>
-               </div>
-            </div>
-            {% endfor %}
-         </div>
+         {{ discounts_html|raw }}
       </div>
 
       <div class="tab-pane" id="tpv_cli_direcciones">
@@ -216,6 +111,8 @@
          </div>
 
          <h5>Nueva / editar dirección</h5>
+         {# Not a <form>: the address controls ride inside the client form, so
+            save_direccion_tpv keeps its own hidden codcliente. #}
          <div id="f_direccion_tpv" class="form">
             <input type="hidden" name="save_direccion_tpv" value="1"/>
             <input type="hidden" name="codcliente" value="{{ cliente.codcliente }}"/>
@@ -269,3 +166,4 @@
 <script type="text/javascript">
    window.tpvDireccionesData = {{ fsc.tpv_direcciones|default([])|json_encode|raw }};
 </script>
+{% endif %}

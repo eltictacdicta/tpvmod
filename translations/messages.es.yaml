@@ -1,0 +1,4 @@
+# Traducciones de tpvmod - Español
+
+# Formulario de cliente (modal del TPV)
+tpv-cliente-form-sin-clientes-core: "El plugin clientes_core no está disponible: no se puede cargar el formulario de cliente. Actívalo o avisa al administrador."
