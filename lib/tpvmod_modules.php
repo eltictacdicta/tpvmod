@@ -77,7 +77,12 @@ function tpvmod_terminal_settings_available(?array $plugins = null): bool
  * with explicit &tipo=) → null. facturacion_base is preserved as the canonical
  * path; factura_pdf1 is a fallback that works when the legacy plugin is gone.
  *
- * @param 'albaran'|'pedido'|'presupuesto'|'factura' $documentType
+ * The known document types are 'albaran', 'pedido', 'presupuesto' and
+ * 'factura'. The parameter is a plain string on purpose: an unrecognized type
+ * means "printing unavailable" (null), not a programming error, so the match
+ * keeps its `default` arm.
+ *
+ * @param string $documentType
  */
 function tpvmod_imprimir_url(string $documentType, ?array $plugins = null): ?string
 {
@@ -500,10 +505,6 @@ function tpvmod_impuestos_tpv_json(iterable $impuestos): array
     $result = [];
 
     foreach ($impuestos as $imp) {
-        if (!$imp) {
-            continue;
-        }
-
         $result[] = [
             'codimpuesto' => (string) ($imp->codimpuesto ?? ''),
             'descripcion' => (string) ($imp->descripcion ?? ''),

@@ -296,7 +296,7 @@ function tpvmod_opcionales_for_articulo(string $referencia, float $pvpArticulo, 
     });
 
     return [
-        'grupos' => array_values($grupos),
+        'grupos' => $grupos,
         'sueltos' => $sueltos,
         'codfamilia' => tpvmod_articulo_codfamilia($referencia),
     ];
@@ -489,12 +489,12 @@ function tpvmod_validate_obligatorios_post(array $post): array
                 continue;
             }
 
-            $grupoId = (int) ($grupo['id'] ?? 0);
+            $grupoId = (int) $grupo['id'];
             if ($grupoId <= 0 || !empty($selected['grupos'][$grupoId])) {
                 continue;
             }
 
-            $errors[] = 'Artículo ' . $referencia . ': debes elegir el grupo "' . ($grupo['nombre'] ?? '') . '".';
+            $errors[] = 'Artículo ' . $referencia . ': debes elegir el grupo "' . $grupo['nombre'] . '".';
         }
 
         foreach ($payload['sueltos'] as $suelto) {
