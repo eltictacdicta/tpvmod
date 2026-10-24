@@ -33,3 +33,21 @@
 - [x] **T17** Root PHPUnit discovers TpvmodModulesTest (Plugins suite has unrelated tarifario failures).
 - [x] **T18** Write `verify-report.md`.
 - [ ] **T19** Manual smoke in browser (operator).
+
+## Wave 6 — Correction of the require declaration (after T5)
+
+- [x] **T20** Realign `fsframework.ini` `require` with the code it actually uses.
+  `lib/tpvmod_cliente_ajax.php` and `lib/tpvmod_cliente.php` instantiate three
+  `clientes_core` models directly (`cliente`, `direccion_cliente`,
+  `grupo_descuentos`), so `clientes_core` is now declared as a direct
+  dependency: `require = "clientes_facturacion,catalogo_core,clientes_core"`
+  (v2.3.1). This closes obligation `3.4` recorded by the archived
+  `clientes_core` change `cliente-form-compartido-grupos-obligatorios`.
+
+  Ordering note: `clientes_core` was already a transitive hard dependency
+  (`tpvmod → clientes_facturacion → clientes_core`) and
+  `PluginUpdateOrderer` already resolves the transitive graph, so this is a
+  declaration-fidelity fix, not an ordering fix.
+
+  `business_data` stays transitive and is deliberately NOT re-added: it is
+  outside this correction's scope.
