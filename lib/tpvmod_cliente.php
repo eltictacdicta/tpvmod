@@ -4,6 +4,12 @@
  * Copyright (C) 2026 Javier Trujillo <mistertekcom@gmail.com>
  *
  * Pure helpers for TPV client search and modal CRUD (testable without HTTP).
+ *
+ * Client-form processing is NOT implemented here: `clientes_core\ClienteForm`
+ * is the single authority for mapping a submission, applying the discount
+ * group defaults and computing the `descuentos_modified` flag. This file keeps
+ * one thin seam (`tpvmod_cliente_apply()`) plus the display and response
+ * helpers the TPV needs for its own markup.
  */
 
 declare(strict_types=1);
@@ -43,204 +49,35 @@ function tpvmod_cliente_telefono_display(object $cliente): string
 }
 
 /**
+ * Whether the shared client-form authority (`clientes_core\ClienteForm`) is
+ * available in this installation. Consumers must refuse to persist a client
+ * when it is not.
+ */
+function tpvmod_cliente_form_authority_available(): bool
+{
+    return class_exists(\FSFramework\Plugins\clientes_core\ClienteForm::class);
+}
+
+/**
+ * Map a client-form submission onto a cliente through the shared authority.
+ *
+ * `ClienteForm::apply()` is selective (only keys present in `$post` are
+ * touched), maps empty group codes to NULL without inventing a fallback,
+ * applies the discount group defaults when the group changes and recomputes
+ * `descuentos_modified`.
+ *
+ * Without the authority the object is returned untouched so the caller can
+ * answer with an explicit error instead of persisting a half-mapped client.
+ *
  * @param array<string, mixed> $post
- * @param (callable(string): ?object)|null $groupResolver Resolves a discount
- *        group by code; defaults to the shared grupo_descuentos model. Injected
- *        by tests to avoid the DB-backed model.
  */
-function tpvmod_cliente_apply_from_post(object $cliente, array $post, ?callable $groupResolver = null): void
+function tpvmod_cliente_apply(object $cliente, array $post): object
 {
-    if (array_key_exists('nombre', $post)) {
-        $cliente->nombre = (string) $post['nombre'];
-    }
-    if (array_key_exists('razonsocial', $post)) {
-        $cliente->razonsocial = (string) $post['razonsocial'];
-    }
-    if (array_key_exists('tipoidfiscal', $post)) {
-        $cliente->tipoidfiscal = (string) $post['tipoidfiscal'];
-    }
-    if (array_key_exists('cifnif', $post)) {
-        $cliente->cifnif = (string) $post['cifnif'];
-    }
-    if (array_key_exists('telefono1', $post)) {
-        $cliente->telefono1 = (string) $post['telefono1'];
-    }
-    if (array_key_exists('telefono2', $post)) {
-        $cliente->telefono2 = (string) $post['telefono2'];
-    }
-    if (array_key_exists('fax', $post)) {
-        $cliente->fax = (string) $post['fax'];
-    }
-    if (array_key_exists('email', $post)) {
-        $cliente->email = (string) $post['email'];
-    }
-    if (array_key_exists('web', $post)) {
-        $cliente->web = (string) $post['web'];
-    }
-    if (array_key_exists('coddivisa', $post)) {
-        $cliente->coddivisa = ($post['coddivisa'] ?? '') !== '' ? (string) $post['coddivisa'] : null;
-    }
-    if (array_key_exists('codgrupo', $post)) {
-        // No silent fallback: an empty selection stays null so cliente::test()
-        // rejects it. Writing '000000' here (the discount-group default code)
-        // conflated both group concepts and violated the gruposclientes FK.
-        $cliente->codgrupo = ($post['codgrupo'] ?? '') !== '' ? (string) $post['codgrupo'] : null;
-    }
-    if (array_key_exists('regimeniva', $post)) {
-        $cliente->regimeniva = (string) $post['regimeniva'];
-    }
-    if (array_key_exists('recargo', $post)) {
-        $cliente->recargo = ($post['recargo'] ?? '') === '1';
-    }
-    if (array_key_exists('personafisica', $post)) {
-        $cliente->personafisica = ($post['personafisica'] ?? '') === '1';
-    }
-    if (array_key_exists('diaspago', $post)) {
-        $cliente->diaspago = (string) $post['diaspago'];
-    }
-    if (array_key_exists('observaciones', $post)) {
-        $cliente->observaciones = (string) $post['observaciones'];
-    }
-    if (array_key_exists('debaja', $post)) {
-        $cliente->debaja = ($post['debaja'] ?? '') === '1';
-    }
-    $previousDiscountGroup = property_exists($cliente, 'codgrupo_descuento')
-        ? ($cliente->codgrupo_descuento ?? null)
-        : null;
-
-    foreach (['d1', 'd2', 'd3', 'd4'] as $field) {
-        if (array_key_exists($field, $post)) {
-            $cliente->{$field} = (float) $post[$field];
-        }
+    if (!tpvmod_cliente_form_authority_available()) {
+        return $cliente;
     }
 
-    $codgrupoDescuento = $post['codgrupo_descuento'] ?? null;
-    $currentDiscountGroup = ($codgrupoDescuento !== null && $codgrupoDescuento !== '')
-        ? (string) $codgrupoDescuento
-        : null;
-    $cliente->codgrupo_descuento = $currentDiscountGroup;
-
-    tpvmod_cliente_apply_group_defaults_on_change(
-        $cliente,
-        $previousDiscountGroup,
-        $currentDiscountGroup,
-        $groupResolver
-    );
-
-    tpvmod_cliente_sync_descuentos_modified_flag($cliente, $groupResolver);
-}
-
-/**
- * True when the discount-group assignment moved (first assignment included).
- * An unchanged group keeps the submitted D1-D4 as a per-client override.
- */
-function tpvmod_cliente_group_changed(?string $previous, ?string $current): bool
-{
-    return $current !== $previous;
-}
-
-/**
- * Overwrite D1-D4 with the new group's defaults whenever the discount group
- * changed. Selecting a group must apply its defaults immediately; only the
- * per-client override of an unchanged group survives. Removing the group
- * clears the discounts to 0.
- *
- * @param (callable(string): ?object)|null $groupResolver
- */
-function tpvmod_cliente_apply_group_defaults_on_change(
-    object $cliente,
-    ?string $previous,
-    ?string $current,
-    ?callable $groupResolver = null
-): void {
-    if (!tpvmod_cliente_group_changed($previous, $current)) {
-        return;
-    }
-
-    if ($current === null) {
-        foreach (['d1', 'd2', 'd3', 'd4'] as $field) {
-            $cliente->{$field} = 0.0;
-        }
-        return;
-    }
-
-    $resolve = $groupResolver ?? tpvmod_cliente_default_group_resolver();
-
-    $grupo = $resolve($current);
-    if ($grupo === null) {
-        return;
-    }
-
-    foreach (tpvmod_cliente_discount_values($grupo) as $field => $value) {
-        $cliente->{$field} = $value;
-    }
-}
-
-/**
- * Default discount-group resolver: the shared grupo_descuentos model when it
- * is loaded. Returns null when the model or the group is unavailable.
- *
- * @return callable(string): ?object
- */
-function tpvmod_cliente_default_group_resolver(): callable
-{
-    return static function (string $cod): ?object {
-        if (!class_exists('grupo_descuentos')) {
-            return null;
-        }
-
-        $grupo = (new grupo_descuentos())->get($cod);
-
-        return $grupo ?: null;
-    };
-}
-
-/**
- * Normalized D1-D4 values: an unset (NULL) discount means no discount (0.00),
- * so NULL and 0 compare equal in the modified diff.
- *
- * @return array{d1: float, d2: float, d3: float, d4: float}
- */
-function tpvmod_cliente_discount_values(object $source): array
-{
-    $values = [];
-    foreach (['d1', 'd2', 'd3', 'd4'] as $field) {
-        $values[$field] = (float) ($source->{$field} ?? 0);
-    }
-
-    return $values;
-}
-
-/**
- * Mark descuentos_modified when D1–D4 differ from the selected discount group.
- * NULL and 0.00 mean the same thing, so they compare equal.
- *
- * @param (callable(string): ?object)|null $groupResolver
- */
-function tpvmod_cliente_sync_descuentos_modified_flag(
-    object $cliente,
-    ?callable $groupResolver = null
-): void {
-    if (empty($cliente->codgrupo_descuento)) {
-        return;
-    }
-
-    $resolve = $groupResolver ?? tpvmod_cliente_default_group_resolver();
-    $grupoDesc = $resolve((string) $cliente->codgrupo_descuento);
-    if ($grupoDesc === null) {
-        return;
-    }
-
-    $groupValues = tpvmod_cliente_discount_values($grupoDesc);
-    $modified = false;
-    foreach (tpvmod_cliente_discount_values($cliente) as $field => $clientVal) {
-        if (round($clientVal, 2) !== round($groupValues[$field], 2)) {
-            $modified = true;
-            break;
-        }
-    }
-
-    $cliente->descuentos_modified = $modified;
+    return \FSFramework\Plugins\clientes_core\ClienteForm::apply($cliente, $post);
 }
 
 /**

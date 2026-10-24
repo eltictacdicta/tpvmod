@@ -11,24 +11,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/tpvmod_modules.php';
 require_once __DIR__ . '/tpvmod_cliente.php';
 
-function tpvmod_cliente_ajax_ensure_models(): void
-{
-    require_model('cliente.php');
-    require_model('direccion_cliente.php');
-    require_model('grupo_clientes.php');
-    if (!class_exists('grupo_descuentos', false)) {
-        require_model('grupo_descuentos.php');
-    }
-}
-
 /**
  * Handle TPV client modal AJAX requests. Returns true when the request was handled
  * and the controller should stop further private_core() processing.
  */
 function tpvmod_cliente_ajax_dispatch(fs_controller $ctrl): bool
 {
-    tpvmod_cliente_ajax_ensure_models();
-
     if (isset($_POST['buscar_cliente_modal'])) {
         tpvmod_cliente_ajax_buscar($ctrl);
         return true;
@@ -126,6 +114,15 @@ function tpvmod_cliente_ajax_save_cliente(fs_controller $ctrl): void
         return;
     }
 
+    // The shared authority owns the mapping: without it the client would be
+    // persisted half-mapped, so fail explicitly instead.
+    if (!tpvmod_cliente_form_authority_available()) {
+        $error = 'El plugin clientes_core no está disponible: no se puede guardar el cliente.';
+        $ctrl->new_error_msg($error);
+        tpvmod_cliente_ajax_emit_json(tpvmod_cliente_error_response([$error]));
+        return;
+    }
+
     $cod = trim((string) (fs_filter_input_req('codcliente', '') ?? ''));
     $model = new cliente();
     $cliente = ($cod !== '') ? $model->get($cod) : new cliente();
@@ -134,13 +131,7 @@ function tpvmod_cliente_ajax_save_cliente(fs_controller $ctrl): void
         return;
     }
 
-    tpvmod_cliente_apply_from_post($cliente, $_POST);
-
-    if (!$cliente->nombre) {
-        $cliente->razonsocial = $cliente->razonsocial ?: $cliente->nombre;
-    } elseif (!$cliente->razonsocial) {
-        $cliente->razonsocial = $cliente->nombre;
-    }
+    tpvmod_cliente_apply($cliente, $_POST);
 
     if (!$cliente->save()) {
         $errors = method_exists($cliente, 'get_errors') ? $cliente->get_errors() : [];
