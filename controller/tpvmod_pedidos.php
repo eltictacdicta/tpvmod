@@ -280,7 +280,7 @@ class tpvmod_pedidos extends fs_controller
           array(
               'name' => 'pedidos_agente',
               'page_from' => __CLASS__,
-              'page_to' => 'admin_agente',
+              'page_to' => 'admin_agentes',
               'type' => 'button',
               'text' => '<span class="glyphicon glyphicon-list" aria-hidden="true"></span> &nbsp; '.ucfirst(FS_PEDIDOS) . ' de cliente',
               'params' => ''

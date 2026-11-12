@@ -388,7 +388,7 @@ class tpvmod_presupuestos extends fs_controller
           array(
               'name' => 'presupuestos_agente',
               'page_from' => __CLASS__,
-              'page_to' => 'admin_agente',
+              'page_to' => 'admin_agentes',
               'type' => 'button',
               'text' => '<span class="glyphicon glyphicon-list" aria-hidden="true"></span> &nbsp; '.ucfirst(FS_PRESUPUESTOS) . ' de cliente',
               'params' => ''

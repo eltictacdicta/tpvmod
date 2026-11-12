@@ -344,7 +344,7 @@ class tpvmod_facturas extends fs_controller
           array(
               'name' => 'facturas_agente',
               'page_from' => __CLASS__,
-              'page_to' => 'admin_agente',
+              'page_to' => 'admin_agentes',
               'type' => 'button',
               'text' => '<span class="glyphicon glyphicon-list" aria-hidden="true"></span> &nbsp; Facturas de cliente',
               'params' => ''
